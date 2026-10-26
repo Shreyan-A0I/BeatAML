@@ -1,0 +1,39 @@
+name: beataml
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - git-lfs            # required: the data repo is LFS-backed
+
+  # core
+  - numpy
+  - pandas
+  - scipy
+  - scikit-learn
+  - openpyxl           # reads the clinical/mapping .xlsx files
+
+  # models
+  - pytorch            # beta-VAE; CPU build is plenty at this sample size
+  - xgboost
+  - shap
+
+  # survival
+  - lifelines
+  - scikit-survival
+
+  # enrichment / interpretation
+  - gseapy
+
+  # plotting + notebooks
+  - matplotlib
+  - seaborn
+  - jupyterlab
+  - ipykernel
+
+  # hygiene
+  - ruff
+  - nbstripout         # keeps notebook outputs out of git (see README)
+
+  - pip:
+      - umap-learn

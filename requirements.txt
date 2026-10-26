@@ -1,0 +1,33 @@
+# pip mirror of environment.yml, for a plain `python -m venv .venv` setup.
+# environment.yml stays as the conda path; this is the one used on macOS/py3.13.
+
+# core
+numpy
+pandas
+scipy
+scikit-learn
+openpyxl            # reads the clinical/mapping .xlsx files
+pyarrow             # fast parquet for data/interim
+
+# models
+torch               # beta-VAE; CPU build is plenty at this sample size
+xgboost
+shap
+
+# survival
+lifelines
+scikit-survival
+
+# enrichment / interpretation
+gseapy
+
+# plotting + notebooks
+matplotlib
+seaborn
+jupyterlab
+ipykernel
+umap-learn
+
+# hygiene
+ruff
+nbstripout

@@ -1,0 +1,42 @@
+# ---- Data: never commit. The expression matrix alone is 281 MB and GitHub
+# ---- hard-rejects any file over 100 MB. Data is fetched by scripts/get_data.sh.
+data/raw/*
+data/interim/*
+data/processed/*
+!data/**/.gitkeep
+
+# Large/derived artifacts
+*.h5ad
+*.rds
+*.RData
+*.pkl
+*.joblib
+*.pt
+*.ckpt
+results/figures/*
+results/tables/*
+!results/**/.gitkeep
+
+# Notebooks: strip outputs before committing (see README)
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Secrets
+.env
+*.pem

@@ -16,6 +16,8 @@ data/processed/*
 results/figures/*
 results/tables/*
 !results/**/.gitkeep
+# Figures are small and worth sharing: track PNGs.
+!results/figures/*.png
 
 # Notebooks: strip outputs before committing (see README)
 .ipynb_checkpoints/

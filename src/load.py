@@ -26,6 +26,7 @@ originally guessed names were wrong -- see the notes on COLS below.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import TypedDict, cast
 
 import numpy as np
 import pandas as pd
@@ -155,7 +156,7 @@ def load_expression(log_transform: bool = False) -> pd.DataFrame:
     df = pd.read_csv(_require(FILES["expr"]), sep="\t", low_memory=False)
     df = df.set_index([c for c in EXPR_ID_COLS if c in df.columns])
     if log_transform:
-        df = np.log2(df + 1)
+        df = df.add(1).transform(np.log2)
     return df
 
 
@@ -197,8 +198,12 @@ def control_rna_samples() -> list[str]:
     `expr.columns` before using these as a column selection.
     """
     m = load_mapping()
-    ctrl = m[m.rna_control.notna() & m.rna_control.ne("No")]
-    return sorted(ctrl[COLS["rna_id"]].dropna().astype(str))
+    ids = [
+        str(rna)
+        for rna, flag in zip(m[COLS["rna_id"]], m["rna_control"])
+        if pd.notna(rna) and pd.notna(flag) and flag != "No"
+    ]
+    return sorted(ids)
 
 
 def manuscript_rna_samples() -> list[str]:
@@ -239,11 +244,12 @@ def load_auc_long(
     """
     _check_confirmed()
     df = pd.read_csv(_require(FILES["auc"]), sep="\t", low_memory=False)
+    keep = pd.Series(True, index=df.index)
     if decreasing_only:
-        df = df[df.curve_type.eq("decreasing")]
+        keep &= df["curve_type"].eq("decreasing")
     if converged_only:
-        df = df[df.converged.astype(str).str.upper().eq("TRUE")]
-    return _add_base_samp(df)
+        keep &= df["converged"].astype(str).str.upper().eq("TRUE")
+    return _add_base_samp(cast(pd.DataFrame, df[keep]))
 
 
 def load_auc_matrix(**kwargs) -> pd.DataFrame:
@@ -294,7 +300,7 @@ def load_pc1_baseline() -> pd.DataFrame:
     lists that are NOT in this repo. See reports/schema_notes.md.
     """
     vg = pd.read_excel(_require(FILES["vg_scores"]), sheet_name="Malignant Cell Type Scores")
-    return vg.set_index(COLS["rna_id"])[CELL_TYPES]
+    return cast(pd.DataFrame, vg.set_index(COLS["rna_id"])[CELL_TYPES])
 
 
 def load_wgcna_modules() -> pd.DataFrame:
@@ -367,10 +373,22 @@ def one_specimen_per_patient(
 def patient_groups(meta: pd.DataFrame) -> np.ndarray:
     """Group labels for GroupKFold, so no patient spans a train/test split."""
     _check_confirmed()
-    return meta[COLS["patient_id"]].to_numpy()
+    return np.asarray(meta[COLS["patient_id"]].to_numpy())
 
 
-def build_modeling_frame(verbose: bool = True) -> dict[str, object]:
+class ModelingFrame(TypedDict):
+    """What `build_modeling_frame()` returns. Keys are fixed so type checkers can see them."""
+
+    expr: pd.DataFrame      # genes x all expression columns (incl. controls)
+    auc: pd.DataFrame       # base_samp x inhibitor AUC matrix (sparse)
+    clinical: pd.DataFrame  # one row per specimen, cleaned
+    meta: pd.DataFrame      # the modeling rows (clinical subset, one per specimen)
+    X: pd.DataFrame         # specimens x genes, row-aligned to `meta`
+    y: pd.DataFrame         # specimens x inhibitors, row-aligned to `meta`
+    groups: np.ndarray      # patient IDs, for GroupKFold
+
+
+def build_modeling_frame(verbose: bool = True) -> ModelingFrame:
     """Assemble aligned expression / AUC / clinical for modeling.
 
     Returns a dict so the caller can see exactly how many specimens survived
@@ -381,15 +399,14 @@ def build_modeling_frame(verbose: bool = True) -> dict[str, object]:
     clin = load_clinical()
     auc = load_auc_matrix()
 
-    rna_yes = clin.manuscript_rnaseq.eq("yes")
-    inh_yes = clin.manuscript_inhibitor.eq("yes")
-    model_meta = clin[rna_yes & inh_yes].copy()
+    rna_yes = clin["manuscript_rnaseq"].eq("yes")
+    inh_yes = clin["manuscript_inhibitor"].eq("yes")
+    model_meta = cast(pd.DataFrame, clin[rna_yes & inh_yes]).copy()
 
-    expr_cols = set(expr.columns)
-    usable = model_meta[
-        model_meta[COLS["rna_id"]].isin(expr_cols)
-        & model_meta.base_samp.isin(set(auc.index))
-    ].copy()
+    expr_cols = set(expr.columns)  # set for fast lookup
+    in_expr = model_meta[COLS["rna_id"]].isin(list(expr_cols))
+    in_auc = model_meta["base_samp"].isin(list(auc.index))
+    usable = cast(pd.DataFrame, model_meta[in_expr & in_auc]).copy()
 
     if verbose:
         ctrl_in_expr = [c for c in control_rna_samples() if c in expr_cols]
@@ -400,24 +417,24 @@ def build_modeling_frame(verbose: bool = True) -> dict[str, object]:
         print(f"inhibitors                      : {auc.shape[1]:,}")
         print(f"rnaseq AND inhibitor (clinical) : {(rna_yes & inh_yes).sum():,}")
         print(f"overlap present in both matrices: {len(usable):,}")
-        dropped = set(model_meta.base_samp) - set(usable.base_samp)
+        dropped = set(model_meta["base_samp"]) - set(usable["base_samp"])
         if dropped:
             print(f"  dropped by AUC QC filters     : {sorted(dropped)}")
         print(f"  distinct patients             : {usable[COLS['patient_id']].nunique():,}")
         print(f"  cohort split                  : {dict(usable[COLS['cohort']].value_counts())}")
 
     X = expr[usable[COLS["rna_id"]].tolist()].T
-    y = auc.loc[usable.base_samp.tolist()]
+    y = auc.loc[usable["base_samp"].tolist()]
 
-    return {
-        "expr": expr,
-        "auc": auc,
-        "clinical": clin,
-        "meta": usable,
-        "X": X,                                  # specimens x genes, aligned
-        "y": y,                                  # specimens x inhibitors, aligned
-        "groups": patient_groups(usable),
-    }
+    return ModelingFrame(
+        expr=expr,
+        auc=auc,
+        clinical=clin,
+        meta=usable,
+        X=X,                                  # specimens x genes, aligned
+        y=y,                                  # specimens x inhibitors, aligned
+        groups=patient_groups(usable),
+    )
 
 
 if __name__ == "__main__":

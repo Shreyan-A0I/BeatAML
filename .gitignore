@@ -42,3 +42,6 @@ Thumbs.db
 # Secrets
 .env
 *.pem
+
+# Literature: papers/proposal PDFs and notes (copyrighted, kept local)
+literature/

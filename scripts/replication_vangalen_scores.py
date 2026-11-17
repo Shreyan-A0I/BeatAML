@@ -27,83 +27,11 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
 
-from src.features import pc1_baseline, split_by_cohort
+# The scoring functions live in src/features.py (shared with the drug
+# recommender); re-exported here so existing imports keep working.
+from src.features import VG_N_TOP as N_TOP
+from src.features import load_signatures, paper_score, pc1_baseline, split_by_cohort
 from src.load import CELL_TYPES, COLS, build_modeling_frame
-
-SUPP = Path("data/raw/mmc3.xlsx")  # van Galen 2019 Table S3
-N_TOP = 30
-
-# 0-based column of each tumour-derived per-cell-type signature in Table S3.
-# GMP-like has no per-cell-type list: its cell says "see combined signature",
-# so it uses the tumour-derived combined GMP-like column instead.
-SIG_COL = {
-    "HSC-like": 7,
-    "Progenitor-like": 8,
-    "GMP-like": 5,
-    "Promono-like": 10,
-    "Monocyte-like": 11,
-    "cDC-like": 12,
-}
-
-
-def load_signatures(n_top: int = N_TOP) -> dict[str, list[str]]:
-    """Read the top-`n_top` gene signature for each cell type from Table S3.
-
-    Inputs:
-        n_top: Number of genes to take from each signature column (default N_TOP = 30).
-            Read from the module-level SUPP file (data/raw/mmc3.xlsx) and SIG_COL.
-
-    Output:
-        dict mapping each cell-type name (keys of SIG_COL) to a list of n_top
-        gene symbols, as strings with surrounding whitespace stripped, in the
-        order they appear in Table S3.
-
-    Raises AssertionError if a column header does not match its expected cell
-    type, or if a column yields fewer than n_top genes.
-    """
-    raw = pd.read_excel(SUPP, header=None)
-    names = raw.iloc[1]  # row 2 of the sheet holds the column names
-    sigs = {}
-    for ct, j in SIG_COL.items():
-        assert names[j] == ct, f"Table S3 column {j} is {names[j]!r}, expected {ct!r}"
-        genes = raw.iloc[2:2 + n_top, j].dropna().astype(str).str.strip().tolist()
-        assert len(genes) == n_top, f"{ct}: found {len(genes)} genes"
-        sigs[ct] = genes
-    return sigs
-
-
-def paper_score(X: np.ndarray, tissue_bm: np.ndarray, train: np.ndarray) -> np.ndarray:
-    """PC1 score of one gene set, with centring and scaling per tissue group.
-
-    Inputs:
-        X: float array, shape (n_specimens, n_genes). Expression of the gene set
-            only, one row per specimen.
-        tissue_bm: boolean array, shape (n_specimens,). True for bone marrow
-            aspirate specimens, False for peripheral blood / leukapheresis.
-        train: boolean array, shape (n_specimens,). True for training specimens
-            (Waves 1+2). Only these are used to fit the parameters.
-
-    Output:
-        1-D float array, shape (n_specimens,): the PC1 score of every specimen,
-        sign-aligned so it correlates positively with the mean expression of
-        the gene set.
-
-    Fitting uses training specimens only: per-tissue means and SDs, then the
-    first right singular vector of the training block. All specimens are then
-    projected onto that vector, so test specimens never influence the fit.
-    """
-    Z = np.empty_like(X)
-    for group in (tissue_bm, ~tissue_bm):
-        mu = X[group & train].mean(axis=0)
-        sd = X[group & train].std(axis=0, ddof=1)
-        sd[sd == 0] = 1.0
-        Z[group] = (X[group] - mu) / sd
-    _, _, vt = np.linalg.svd(Z[train], full_matrices=False)
-    score = Z @ vt[0]
-    # PC1 sign is arbitrary: align it with the average expression of the set.
-    if np.corrcoef(score, Z.mean(axis=1))[0, 1] < 0:
-        score = -score
-    return score
 
 
 def main() -> None:

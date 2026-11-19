@@ -217,36 +217,58 @@ def drop_controls(expr: pd.DataFrame) -> pd.DataFrame:
     return expr.drop(columns=[c for c in control_rna_samples() if c in expr.columns])
 
 
+CURVE_POLICIES = ("clean", "decreasing", "all")
+
+
 def load_auc_long(
-    decreasing_only: bool = True,
+    curves: str = "clean",
     converged_only: bool = True,
+    decreasing_only: bool | None = None,
 ) -> pd.DataFrame:
     """Long-format probit curve fits, one row per specimen x inhibitor.
 
-    Two filters worth understanding before you turn them off:
+    `curves` decides what happens to the 8,468 of 63,395 rows whose fitted curve
+    goes UP with dose ("increasing"). They are two different things:
 
-    `decreasing_only` drops 8,468 of 63,395 rows whose fitted curve goes UP with
-    dose. AUC on an increasing curve does not mean "resistant" the way it does
-    elsewhere, so mixing them into a regression target is incoherent.
+      * 7,093 never pushed viability below 50% at any dose (median AUC 266).
+        The drug simply did not work: an informative "resistant" result.
+      * 1,375 dipped below 50% and then rose (median AUC 118). Non-monotone and
+        uninterpretable; half of them would land in the most-sensitive 20% of
+        their drug, i.e. they would create false "sensitive" labels.
+
+      "clean"       (default) decreasing curves + increasing curves that never
+                    fell below 50% viability. Drops only the dip-then-rise ones.
+                    Team decision 2026-11-19. Dropping every increasing curve
+                    would remove resistant results unevenly (more often in
+                    high-blast and Waves3+4 samples), i.e. missing not at random.
+      "decreasing"  the earlier default: decreasing curves only.
+      "all"         keep everything (the manuscript's convention).
+
+    `decreasing_only` is kept for old callers: True -> "decreasing", False -> "all".
 
     `converged_only` drops 14 rows where the probit fit failed.
 
-    One specimen, BA2563, is flagged manuscript_inhibitor == "yes" but has a
-    single AUC row in the entire table and that curve is increasing -- so
-    `decreasing_only` removes it outright and the honest modeling n is 429,
-    not the 430 the clinical flags imply.
+    BA2563 is flagged manuscript_inhibitor == "yes" but its single AUC row is a
+    dip-then-rise curve, dropped under "clean" and "decreasing" -- hence the
+    modeling n of 429, not the 430 the clinical flags imply.
 
-    Not filtered here, but check it yourself: `all_gt_50` is True for 45% of
-    rows -- the drug never pushed viability below 50% at any tested dose. Those
-    AUCs pile up against the ceiling (mean 245 vs 156 for the rest), which is a
-    censoring problem, not noise. `paper_inclusion` is True for every row, so it
-    is useless as a filter.
+    Not filtered here: `all_gt_50` is True for 45% of rows -- the drug never
+    pushed viability below 50%. Those AUCs pile up against the ceiling, which is
+    censoring, not noise. `paper_inclusion` is True for every row.
     """
     _check_confirmed()
+    if decreasing_only is not None:
+        curves = "decreasing" if decreasing_only else "all"
+    if curves not in CURVE_POLICIES:
+        raise ValueError(f"curves must be one of {CURVE_POLICIES}, got {curves!r}")
     df = pd.read_csv(_require(FILES["auc"]), sep="\t", low_memory=False)
     keep = pd.Series(True, index=df.index)
-    if decreasing_only:
-        keep &= df["curve_type"].eq("decreasing")
+    decreasing = df["curve_type"].eq("decreasing")
+    never_below_50 = df["all_gt_50"].astype(str).str.upper().eq("TRUE")
+    if curves == "decreasing":
+        keep &= decreasing
+    elif curves == "clean":
+        keep &= decreasing | never_below_50
     if converged_only:
         keep &= df["converged"].astype(str).str.upper().eq("TRUE")
     return _add_base_samp(cast(pd.DataFrame, df[keep]))

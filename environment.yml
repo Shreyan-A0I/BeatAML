@@ -18,6 +18,9 @@ dependencies:
   - xgboost
   - shap
 
+  # stats
+  - statsmodels
+
   # survival
   - lifelines
   - scikit-survival
@@ -32,6 +35,7 @@ dependencies:
   - ipykernel
 
   # hygiene
+  - pytest
   - ruff
   - nbstripout         # keeps notebook outputs out of git (see README)
 

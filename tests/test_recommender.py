@@ -191,3 +191,37 @@ def test_b1_puts_rule_drugs_first_for_flt3_itd(data, drugs):
     # a patient with no alterations gets exactly B0's order
     b0 = PopulationBaseline().fit(data.auc.loc[tr, drugs]).predict(alts.loc[[plain]], drugs)
     assert list(s.loc[plain].sort_values().index) == list(b0.loc[plain].sort_values(kind="stable").index)
+
+
+# ---------------------------------------------------------------- learned models
+
+
+def _train_split(data, drugs, n_tr=180):
+    from src.features import alteration_table as _alt
+    tr = data.patients[data.train]
+    return tr[:n_tr], tr[n_tr:], _alt
+
+
+def test_learned_models_ignore_test_auc(data, feats, drugs):
+    """M1/M2 predictions for held-out patients must not change if held-out AUC changes."""
+    from src.models import PerDrugRidge, PooledXGB
+    ptr, pte, _alt = _train_split(data, drugs)
+    F = feats.join(_alt(data.clinical, data.patients))
+    for make in (lambda: PerDrugRidge(), lambda: PooledXGB(n_estimators=50)):
+        a = make().fit(data.auc.loc[ptr, drugs], F.loc[ptr]).predict(F.loc[pte], drugs)
+        auc2 = data.auc.copy()
+        auc2.loc[pte, drugs] = auc2.loc[pte, drugs] * 3
+        b = make().fit(auc2.loc[ptr, drugs], F.loc[ptr]).predict(F.loc[pte], drugs)
+        pd.testing.assert_frame_equal(a, b)
+
+
+def test_m1_learns_and_shuffled_m1_does_not(data, feats, drugs):
+    from src.models import PerDrugRidge
+    ptr, pte, _alt = _train_split(data, drugs)
+    z = DrugZScaler().fit(data.auc.loc[ptr, drugs]).transform(data.auc.loc[pte, drugs])
+    real = PerDrugRidge().fit(data.auc.loc[ptr, drugs], feats.loc[ptr]).predict(feats.loc[pte], drugs)
+    shuf = PerDrugRidge(shuffle_seed=0).fit(data.auc.loc[ptr, drugs], feats.loc[ptr]).predict(feats.loc[pte], drugs)
+    m_real = per_patient_metrics(real, z)["spearman"].mean()
+    m_shuf = per_patient_metrics(shuf, z)["spearman"].mean()
+    assert m_real > 0.1
+    assert abs(m_shuf) < 0.08

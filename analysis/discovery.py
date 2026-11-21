@@ -323,45 +323,57 @@ def run_knockoff(q=0.10, reps=10):
 
 # ---------------------------------------------------------------- 4 young PEAR1-high drug arm
 def run_pear1():
+    """What does PEAR1 add beyond stemness, and is it specific to young patients?
+    One model per drug on ALL patients (no split; shrinkage instead):
+        z(AUC) ~ PEAR1 + HSC-like + age + young + PEAR1:young      (young = age < 45)
+    PEAR1 effect in the young = b_PEAR1 + b_PEAR1:young; in the older = b_PEAR1.
+    Effects are shrunk toward zero (empirical Bayes; family pooling hurt in the screen).
+    Hypothesis-generating: ex vivo response did not predict clinical remission."""
     F, meta, sc = frame()
     auc = F["auc"]
     fam = primary_family(list(auc.columns))
     age = meta.ageAtDiagnosis
+    young = (age < 45).astype(float)
     rows = []
-    for band, m in [("age < 45", age < 45), ("age >= 45", age >= 45)]:
-        for d in auc.columns:
-            ok = m & auc[d].notna() & sc.PEAR1.notna()
-            if ok.sum() < 25:
-                continue
-            y = auc.loc[ok, d]
-            y = (y - y.mean()) / y.std()
-            X = np.c_[np.ones(ok.sum()), sc.loc[ok, "PEAR1"], sc.loc[ok, "ct.HSC-like"]]
-            XtX = np.linalg.pinv(X.T @ X)
-            b = XtX @ X.T @ y.to_numpy()
-            r = y.to_numpy() - X @ b
-            se = np.sqrt(r @ r / (len(y) - 3) * XtX[1, 1])
-            rows.append({"band": band, "drug": d, "family": fam[d], "n": int(ok.sum()), "effect": b[1], "se": se})
+    for d in auc.columns:
+        ok = auc[d].notna() & sc.PEAR1.notna() & age.notna()
+        if ok.sum() < 60 or young[ok].sum() < 25:
+            continue
+        y = auc.loc[ok, d]
+        y = ((y - y.mean()) / y.std()).to_numpy()
+        pe, hsc, ag, yg = sc.loc[ok, "PEAR1"], sc.loc[ok, "ct.HSC-like"], (age[ok] - 60) / 15, young[ok]
+        X = np.c_[np.ones(ok.sum()), pe, hsc, ag, yg, pe * yg]
+        XtX = np.linalg.pinv(X.T @ X)
+        b = XtX @ X.T @ y
+        r = y - X @ b
+        V = r @ r / (len(y) - X.shape[1]) * XtX
+        cvec = np.array([0, 1, 0, 0, 0, 1.0])
+        rows.append({"drug": d, "family": fam[d], "n": int(ok.sum()), "n_young": int(yg.sum()),
+                     "effect_young": cvec @ b, "se_young": np.sqrt(cvec @ V @ cvec),
+                     "effect_older": b[1], "se_older": np.sqrt(V[1, 1]),
+                     "interaction": b[5], "p_interaction": 2 * stats.t.sf(abs(b[5] / np.sqrt(V[5, 5])), len(y) - 6)})
     t = pd.DataFrame(rows)
-    out = []
-    for band, g in t.groupby("band"):
-        g = g.reset_index(drop=True)
-        mu = loo_group_mean(g.assign(state="-", gene="-"), ["state", "gene", "family"])
-        g["post"], g["post_sd"], tau2 = eb(g.effect, g.se, mu)
-        g["z_post"] = g.post / g.post_sd
-        g["p_raw"] = 2 * stats.norm.sf(np.abs(g.effect / g.se))
-        g["q_raw"] = bh(g.p_raw)
-        g["tau2"] = tau2
-        out.append(g)
-    t = pd.concat(out)
-    w = t.pivot(index="drug", columns="band", values="post")
+    for grp in ("young", "older"):
+        post, sd, tau2 = eb(t[f"effect_{grp}"], t[f"se_{grp}"], 0.0)
+        t[f"post_{grp}"], t[f"z_{grp}"] = post, post / sd
+        t[f"q_{grp}"] = bh(2 * stats.norm.sf(np.abs(t[f"effect_{grp}"] / t[f"se_{grp}"])))
+        print(f"{grp}: tau2 = {tau2:.4f}")
+    t["q_interaction"] = bh(t.p_interaction)
     t.to_csv(RESULTS / "pear1_drugs.csv", index=False)
-    young = t[t.band == "age < 45"].sort_values("z_post")
-    print(f"young: {young.n.median():.0f} patients per drug (median); tau2 = {young.tau2.iloc[0]:.4f}")
-    print("PEAR1-high young MORE sensitive (lower AUC), adj HSC-like:\n",
-          young.head(12)[["drug", "family", "n", "effect", "se", "post", "z_post", "q_raw"]].round(3).to_string(index=False))
-    print("PEAR1-high young MORE resistant:\n",
-          young.tail(8)[["drug", "family", "n", "effect", "se", "post", "z_post", "q_raw"]].round(3).to_string(index=False))
-    print("correlation of PEAR1 drug effects, young vs older:", round(w.corr().iloc[0, 1], 3))
+    cols = ["drug", "n_young", "effect_young", "se_young", "z_young", "q_young", "effect_older", "q_interaction"]
+    ty = t.sort_values("z_young")
+    with pd.option_context("display.width", 200):
+        print(f"{len(t)} drugs; young patients per drug median {t.n_young.median():.0f}")
+        print("PEAR1-high young MORE sensitive (adjusted for HSC-like and age):\n", ty.head(10)[cols].round(3).to_string(index=False))
+        print("PEAR1-high young MORE resistant:\n", ty.tail(8)[cols].round(3).to_string(index=False))
+        print(f"drugs with q_young < 0.10: {(t.q_young < 0.10).sum()}; q_interaction < 0.10: {(t.q_interaction < 0.10).sum()}")
+        print("correlation of PEAR1 effects young vs older:", round(np.corrcoef(t.effect_young, t.effect_older)[0, 1], 3))
+    # is PEAR1 a general-resistance marker in the young? (mean z-AUC over drugs)
+    z = (auc - auc.mean()) / auc.std()
+    gen = z.mean(1)
+    m = young.astype(bool) & sc.PEAR1.notna()
+    print("young: corr(PEAR1, mean z-AUC) =", round(np.corrcoef(sc.PEAR1[m], gen[m])[0, 1], 3),
+          "| corr(HSC-like, mean z-AUC) =", round(np.corrcoef(sc.loc[m, "ct.HSC-like"], gen[m])[0, 1], 3))
 
 
 # ---------------------------------------------------------------- 5 GSEA of PEAR1-correlated genes

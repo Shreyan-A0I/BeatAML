@@ -40,9 +40,12 @@ def cohort():
     c, sc = c[ok], sc[ok]
     X = pd.DataFrame(index=c.index)
     X["age"] = c.ageAtDiagnosis
-    X["ELN_adv"] = c.ELN2017.eq("Adverse").astype(float)
-    X["ELN_fav"] = c.ELN2017.eq("Favorable").astype(float)
-    X["ELN_missing"] = c.ELN2017.isna().astype(float)
+    from analysis.eln2022 import eln2022
+    from analysis.part2_gaps import rna560
+    eln = eln2022(c, rna560()["muts"].reindex(c.index))["ELN2022"]      # ELN 2022, approximated
+    X["ELN_adv"] = eln.eq("Adverse").astype(float)
+    X["ELN_fav"] = eln.eq("Favorable").astype(float)
+    X["ELN_missing"] = eln.isna().astype(float)
     X["denovo"] = c.isDenovo.astype(str).eq("TRUE").astype(float)
     X["female"] = c.consensus_sex.eq("Female").astype(float)
     for g, col in {"NPM1": "NPM1", "FLT3_ITD": "FLT3-ITD", "TP53": "TP53", "RUNX1": "RUNX1", "ASXL1": "ASXL1"}.items():

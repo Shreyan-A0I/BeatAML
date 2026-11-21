@@ -3,12 +3,12 @@
     python -m analysis.eln
 
 Train on Beat AML Waves1+2, score once on Waves3+4 and on TCGA-LAML.
-  base      Cox: age + ELN2017 (TCGA: age + cytogenetic risk, refit there)
+  base      Cox: age + ELN (2022 by default, approximated: analysis/eln2022.py; "2017" as argument) (TCGA: age + cytogenetic risk, refit there)
   residual  ridge Cox with the base linear predictor as a fixed OFFSET, features =
             frozen-weight cell-type scores, module eigengenes, PEAR1 (lambda by CV)
   LSC17     single score, coefficient fit with the same offset (the benchmark)
   RSF       random survival forest on age + ELN + all scores (non-linear comparison)
-Outputs results/tables/eln_*.csv
+Outputs results/tables/eln2022_*.csv (or eln2017_*)
 """
 from __future__ import annotations
 
@@ -52,13 +52,22 @@ def cindex(T, E, risk):
     return concordance_index(T, -risk, E)
 
 
-def survival_frame(S):
+def eln_column(c, version):
+    if version == "2017":
+        return c.ELN2017
+    from analysis.eln2022 import eln2022
+    from analysis.part2_gaps import rna560
+    return eln2022(c, rna560()["muts"].reindex(c.index))["ELN2022"]
+
+
+def survival_frame(S, version="2022"):
     c, sc = S["beat_clin"], S["beat"]
+    eln = eln_column(c, version)
     T = pd.to_numeric(c.overallSurvival, errors="coerce") / 365.25
     E = c.vitalStatus.map({"Dead": 1, "Alive": 0})
     df = pd.DataFrame({"T": T, "E": E, "age": (c.ageAtDiagnosis - 60) / 15,
-                       "adv": c.ELN2017.eq("Adverse").astype(int), "fav": c.ELN2017.eq("Favorable").astype(int),
-                       "ELN": c.ELN2017, "train": c.cohort.eq("Waves1+2"), "sex": c.consensus_sex,
+                       "adv": eln.eq("Adverse").astype(int), "fav": eln.eq("Favorable").astype(int),
+                       "ELN": eln, "train": c.cohort.eq("Waves1+2"), "sex": c.consensus_sex,
                        "race": c.reportedRace.where(c.reportedRace.isin(["White"]), "Non-white/unknown"),
                        "denovo": c.isDenovo.astype(str).eq("TRUE")}).join(sc)
     return df[df["T"].gt(0) & df.E.notna() & df.ELN.notna() & df.age.notna()]
@@ -73,9 +82,10 @@ def nri(T, E, cat_old, cat_new, horizon=2.0):
     return nri_e, nri_n, nri_e + nri_n, int(ev.sum()), int(ne.sum())
 
 
-def main():
+def main(version="2022"):
+    print(f"ELN {version}")
     S = scores()
-    D = survival_frame(S)
+    D = survival_frame(S, version)
     feats = [c for c in S["beat"].columns if c.startswith(("ct.", "me.")) or c == "PEAR1"]
     tr, te = D[D.train], D[~D.train]
     print(f"train {len(tr)} ({int(tr.E.sum())} deaths), test {len(te)} ({int(te.E.sum())} deaths)")
@@ -100,7 +110,7 @@ def main():
     lam = best[0]
     beta = cox_offset(Xtr, tr["T"].to_numpy(), tr.E.to_numpy(), lp(tr), lam)
     coef = pd.Series(beta, index=feats).sort_values()
-    coef.to_csv(RESULTS / "eln_residual_coefs.csv")
+    coef.to_csv(RESULTS / f"eln{version}_residual_coefs.csv")
     print("residual coefficients:\n", coef.round(3).to_string())
     b_lsc = cox_offset(tr[["LSC17"]].to_numpy(), tr["T"].to_numpy(), tr.E.to_numpy(), lp(tr), 0.0)
     b_pear = cox_offset(tr[["PEAR1"]].to_numpy(), tr["T"].to_numpy(), tr.E.to_numpy(), lp(tr), 0.0)
@@ -184,14 +194,15 @@ def main():
                          "C_ELN": cindex(te["T"].to_numpy()[m], te.E.to_numpy()[m], R["ELN + age"][m]),
                          "C_residual": cindex(te["T"].to_numpy()[m], te.E.to_numpy()[m], r[m])})
     fair = pd.DataFrame(fair)
-    fair.to_csv(RESULTS / "eln_fairness.csv", index=False)
+    fair.to_csv(RESULTS / f"eln{version}_fairness.csv", index=False)
 
     out = pd.DataFrame(rows)
-    out.to_csv(RESULTS / "eln_results.csv", index=False)
+    out.to_csv(RESULTS / f"eln{version}_results.csv", index=False)
     with pd.option_context("display.width", 220, "display.max_columns", 20):
         print(out.round(3).to_string(index=False))
         print(fair.round(3).to_string(index=False))
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    main(sys.argv[1] if len(sys.argv) > 1 else "2022")

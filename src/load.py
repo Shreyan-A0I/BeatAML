@@ -221,7 +221,7 @@ CURVE_POLICIES = ("clean", "decreasing", "all")
 
 
 def load_auc_long(
-    curves: str = "clean",
+    curves: str = "all",
     converged_only: bool = True,
     decreasing_only: bool | None = None,
 ) -> pd.DataFrame:
@@ -236,13 +236,15 @@ def load_auc_long(
         uninterpretable; half of them would land in the most-sensitive 20% of
         their drug, i.e. they would create false "sensitive" labels.
 
-      "clean"       (default) decreasing curves + increasing curves that never
+      "all"         (default) keep everything: the manuscript's convention.
+                    Team decision 2026-11-20: match the paper; "clean" is a
+                    sensitivity analysis.
+      "clean"       decreasing curves + increasing curves that never
                     fell below 50% viability. Drops only the dip-then-rise ones.
-                    Team decision 2026-11-19. Dropping every increasing curve
+                    Dropping every increasing curve
                     would remove resistant results unevenly (more often in
                     high-blast and Waves3+4 samples), i.e. missing not at random.
       "decreasing"  the earlier default: decreasing curves only.
-      "all"         keep everything (the manuscript's convention).
 
     `decreasing_only` is kept for old callers: True -> "decreasing", False -> "all".
 

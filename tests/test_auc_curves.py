@@ -16,7 +16,7 @@ def raw():
 
 
 def test_clean_drops_only_dip_then_rise(raw):
-    clean = load_auc_long()                       # default policy
+    clean = load_auc_long(curves="clean")
     assert (clean.curve_type.eq("decreasing") | clean.all_gt_50.astype(str).str.upper().eq("TRUE")).all()
     inc = clean[clean.curve_type.eq("increasing")]
     assert len(inc) > 0, "rising curves that never fell below 50% must be kept"
@@ -25,7 +25,8 @@ def test_clean_drops_only_dip_then_rise(raw):
 
 def test_policy_counts(raw):
     assert len(raw) == 63_395
-    assert len(load_auc_long(curves="decreasing")) < len(load_auc_long()) < len(load_auc_long(curves="all"))
+    assert len(load_auc_long(curves="decreasing")) < len(load_auc_long(curves="clean")) < len(load_auc_long())
+    assert len(load_auc_long()) == len(load_auc_long(curves="all"))
 
 
 def test_legacy_keyword_still_works():

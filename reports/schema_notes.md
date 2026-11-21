@@ -78,10 +78,10 @@ free. Keep `patient_groups()` for any analysis that relaxes the flags.
    dose. Two kinds: 7,093 never fell below 50% viability (median AUC 266; the
    drug did not work, an informative resistant result) and 1,375 dipped below
    50% then rose (median AUC 118; non-monotone, and half would be labelled
-   "truly sensitive"). **Convention (team decision 2026-11-19):**
-   `load_auc_long()` defaults to `curves="clean"`, which keeps the first kind
-   and drops the second. `curves="decreasing"` is the earlier default and
-   `curves="all"` the manuscript's. On the n=429 matrix, missingness is 39.0%
+   "truly sensitive"). **Convention (team decision 2026-11-20):**
+   `load_auc_long()` defaults to `curves="all"`, the manuscript's convention.
+   `curves="clean"` (keeps the first kind, drops the second) is the sensitivity
+   analysis; `curves="decreasing"` is the original repo default. On the n=429 matrix, missingness is 39.0%
    under "clean" vs 46.1% under "decreasing".
 
 5. **`paper_inclusion` is `True` for every row** — useless as a filter.
@@ -177,4 +177,4 @@ Doing both is also defensible: A as the headline, B as a robustness check.
 - **Module eigengenes** use one global scaling (manuscript `predict.modules()`),
   fit on Waves1+2. **Cell-type scores** use per-tissue scaling. Mixing these up
   changes downstream rankings (it once turned a module-3 rank of 6 into 46).
-- **AUC curves**: `curves="clean"` by default (see trap 4).
+- **AUC curves**: `curves="all"` (paper) by default; "clean" as sensitivity (see trap 4).

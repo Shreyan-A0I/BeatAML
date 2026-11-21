@@ -79,7 +79,8 @@ def drugs(data):
 def test_cohort_split_is_disjoint_and_complete(data):
     assert not (data.train & data.test).any()
     assert (data.train | data.test).all()
-    assert (data.train.sum(), data.test.sum()) == (266, 163)
+    # paper curve convention ("all"): BA2563 (dip-then-rise only) is included -> 267/163
+    assert (data.train.sum(), data.test.sum()) == (267, 163)
     assert data.auc.index.equals(data.patients)
 
 

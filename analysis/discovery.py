@@ -1,10 +1,10 @@
 """Plan section 3 (headline): multi-view clustering, interaction discovery with
 drug-family partial pooling, fixed-X knockoffs, the young PEAR1-high drug arm, GSEA.
 
-    python -m analysis.plan_headline [cluster|interact|knockoff|pear1|gsea|all]
+    python -m analysis.discovery [cluster|interact|knockoff|pear1|gsea|all]
 
 Cohort: n = 430 patients with RNA-seq and drug screen (one specimen each).
-Outputs results/tables/plan_head_*.csv
+Outputs results/tables/*.csv
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from sklearn.metrics import adjusted_rand_score
 from analysis.common import RESULTS, ROOT, load_frame
 from analysis.part1_screen import MIN_CARRIERS, MIN_SCREEN_OBS, MIN_TEST_GROUP, N_TOP, bh, known_flags, \
     screen_effects, split, test_triple
-from analysis.plan_common import drug_factors, scores
+from analysis.scores import drug_factors, scores
 from src.load import load_drug_families
 
 warnings.filterwarnings("ignore")
@@ -104,7 +104,7 @@ def run_cluster():
                      "sizes": np.bincount(full).tolist()})
         print(stab[-1], flush=True)
     stab = pd.DataFrame(stab)
-    stab.to_csv(RESULTS / "plan_head_cluster_k.csv", index=False)
+    stab.to_csv(RESULTS / "cluster_k.csv", index=False)
     k = int(stab.sort_values("stability_ARI", ascending=False).k.iloc[0])
     lab, w = mkkm(Ks, k)
 
@@ -128,7 +128,7 @@ def run_cluster():
         surv.append({"clustering": name, "k": k, "LR_chi2_vs_age_ELN": lr, "df": k - 1, "p": stats.chi2.sf(lr, k - 1),
                      "C": f.concordance_index_, "C_base": f0.concordance_index_})
     surv = pd.DataFrame(surv)
-    surv.to_csv(RESULTS / "plan_head_cluster_survival.csv", index=False)
+    surv.to_csv(RESULTS / "cluster_survival.csv", index=False)
     print(surv.round(4).to_string(index=False))
 
     # profile clusters
@@ -139,7 +139,7 @@ def run_cluster():
     prof = prof.join(sc[["ct.HSC-like", "ct.Monocyte-like", "ct.GMP-like", "PEAR1", "LSC17"]]).join(G[[g for g in ["NPM1", "FLT3_ITD", "TP53", "RUNX1", "ASXL1", "DNMT3A", "NRAS", "KRAS", "TET2", "IDH2", "IDH1"] if g in G]])
     summary = prof.groupby("cluster").mean().round(2)
     summary["n"] = prof.groupby("cluster").size()
-    summary.to_csv(RESULTS / "plan_head_cluster_profile.csv")
+    summary.to_csv(RESULTS / "cluster_profile.csv")
     print(summary.T.to_string())
     ct = pd.crosstab(prof.cluster, prof.young_PEAR1_high)
     print("young PEAR1-high by cluster:\n", ct.to_string(), "\nchi2 p =", stats.chi2_contingency(ct)[1])
@@ -153,10 +153,10 @@ def run_cluster():
             res.append({"drug": d, "p": p, **{f"median_c{c}": g.median() for c, g in enumerate(groups)}})
     res = pd.DataFrame(res)
     res["q"] = bh(res.p)
-    res.sort_values("p").to_csv(RESULTS / "plan_head_cluster_drugs.csv", index=False)
+    res.sort_values("p").to_csv(RESULTS / "cluster_drugs.csv", index=False)
     print(f"{(res.q < 0.05).sum()}/{len(res)} drugs differ across clusters at q<0.05; top:\n",
           res.sort_values("p").head(12).round(4).to_string(index=False))
-    pd.Series(lab, index=meta.index, name="cluster").to_csv(RESULTS / "plan_head_cluster_labels.csv")
+    pd.Series(lab, index=meta.index, name="cluster").to_csv(RESULTS / "cluster_labels.csv")
 
 
 # ---------------------------------------------------------------- 2 interactions with family pooling
@@ -226,9 +226,9 @@ def run_interact(seeds=range(10)):
                                  "family": r.family, "known_exact": k_, "known_family": kf})
         print(pd.DataFrame(rows[-4:]).round(3).to_string(index=False), flush=True)
     t = pd.DataFrame(rows)
-    t.to_csv(RESULTS / "plan_head_interact_arms.csv", index=False)
+    t.to_csv(RESULTS / "interact_arms.csv", index=False)
     h = pd.DataFrame(hits)
-    h.to_csv(RESULTS / "plan_head_interact_hits.csv", index=False)
+    h.to_csv(RESULTS / "interact_hits.csv", index=False)
     s = t.groupby("arm")[["sign_match", "replicate", "replicate_known", "replicate_new"]].agg(["mean", "std"]).round(3)
     print(s.to_string())
     fp = t.pivot(index="seed", columns="arm", values="replicate")
@@ -308,7 +308,7 @@ def run_knockoff(q=0.10, reps=10):
     res["is_alteration"] = res.feature.isin(G.columns)
     print(f"{res.drug.nunique()} drugs, {feats.shape[1]} alterations each")
     res = res[res.select_freq >= 0.5].sort_values(["is_alteration", "select_freq"], ascending=False)
-    res.to_csv(RESULTS / "plan_head_knockoffs.csv", index=False)
+    res.to_csv(RESULTS / "knockoffs.csv", index=False)
     alt = res[res.is_alteration]
     print(f"selected (pooled knockoff+, q={q}, >=50% of {reps} draws): {len(res)} pairs, {len(alt)} alteration-drug")
     with pd.option_context("display.max_colwidth", 400):
@@ -354,7 +354,7 @@ def run_pear1():
         out.append(g)
     t = pd.concat(out)
     w = t.pivot(index="drug", columns="band", values="post")
-    t.to_csv(RESULTS / "plan_head_pear1_drugs.csv", index=False)
+    t.to_csv(RESULTS / "pear1_drugs.csv", index=False)
     young = t[t.band == "age < 45"].sort_values("z_post")
     print(f"young: {young.n.median():.0f} patients per drug (median); tau2 = {young.tau2.iloc[0]:.4f}")
     print("PEAR1-high young MORE sensitive (lower AUC), adj HSC-like:\n",
@@ -366,7 +366,7 @@ def run_pear1():
 
 # ---------------------------------------------------------------- 5 GSEA of PEAR1-correlated genes
 def run_gsea(nperm=2000):
-    from analysis.plan_common import beat_expression
+    from analysis.scores import beat_expression
     E, clin = beat_expression()
     E = E.loc[:, (E > 1).mean() > 0.2]
     young = (clin.ageAtDiagnosis < 45).to_numpy()
@@ -403,7 +403,7 @@ def run_gsea(nperm=2000):
             out.append({"group": grp, "set": name, "size": int(mask.sum()), "ES": e, "NES": nes, "p": p})
     t = pd.DataFrame(out)
     t["q"] = t.groupby("group").p.transform(bh)
-    t.to_csv(RESULTS / "plan_head_gsea_pear1.csv", index=False)
+    t.to_csv(RESULTS / "gsea_pear1.csv", index=False)
     for grp, g in t.groupby("group"):
         print(f"\n{grp}: top hallmarks correlated with PEAR1")
         print(g.sort_values("NES", ascending=False).head(8).round(3).to_string(index=False))

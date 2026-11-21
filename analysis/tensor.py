@@ -1,6 +1,6 @@
 """Plan 3.1: dose-level tensor factorization with drug-family guidance (Rubik-style).
 
-    python -m analysis.plan_tensor
+    python -m analysis.tensor
 
 Tensor: patients x drugs x 7 doses of raw normalized viability (replicates averaged).
 Model: centred by drug x dose mean, then masked CP, fit by ALS on observed entries,
@@ -9,7 +9,7 @@ Tuning/evaluation: hold out whole patient-drug pairs (all doses) in 3 folds.
 Metric that is comparable with the AUC imputers: per-drug Spearman between predicted
 and observed response of held-out pairs (tensor: mean predicted viability; soft-impute:
 predicted AUC), and viability RMSE.
-Outputs: results/tables/plan_tensor_cv.csv, data/interim/tensor_factors.pkl
+Outputs: results/tables/tensor_cv.csv, data/interim/tensor_factors.pkl
 """
 from __future__ import annotations
 
@@ -142,7 +142,7 @@ def main():
                          "spearman_auc": per_drug_spearman(pred.mean(2), obs_auc, held)})
             print(rows[-1], flush=True)
     cv = pd.DataFrame(rows)
-    cv.to_csv(RESULTS / "plan_tensor_cv.csv", index=False)
+    cv.to_csv(RESULTS / "tensor_cv.csv", index=False)
     s = cv.groupby(["model", "rank", "lam"])[["rmse_viab", "spearman_auc"]].mean().reset_index()
     print(s.round(4).to_string(index=False))
 

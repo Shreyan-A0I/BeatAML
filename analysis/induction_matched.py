@@ -2,7 +2,7 @@
 drug screen), CV in Waves1+2 and one Waves3+4 score; paired bootstrap of test AUROC
 differences vs ELN; xgboost feature importance of the clinical winner.
 
-    python -m analysis.plan_induction_matched
+    python -m analysis.induction_matched
 """
 import numpy as np
 import pandas as pd
@@ -10,7 +10,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import GridSearchCV, RepeatedStratifiedKFold, StratifiedKFold
 
 from analysis.common import RESULTS
-from analysis.plan_induction import FEATURE_SETS, LABS, MODELS, cohort, main as _unused, pipe  # noqa: F401
+from analysis.induction import FEATURE_SETS, LABS, MODELS, cohort, main as _unused, pipe  # noqa: F401
 
 
 def main():
@@ -54,7 +54,7 @@ def main():
                 d.append(roc_auc_score(yt[i], p[i]) - roc_auc_score(yt[i], base[i]))
         r["dAUROC_vs_ELN"], r["d_lo"], r["d_hi"] = np.mean(d), *np.percentile(d, [2.5, 97.5])
     t = pd.DataFrame(rows)
-    t.to_csv(RESULTS / "plan_induction_matched.csv", index=False)
+    t.to_csv(RESULTS / "induction_matched.csv", index=False)
     print(t.round(3).to_string(index=False))
 
     # importance in the full-cohort clinical xgboost winner
@@ -66,7 +66,7 @@ def main():
     from sklearn.inspection import permutation_importance
     pi = permutation_importance(gs.best_estimator_, X2[~tr2][clin], y2[~tr2], scoring="roc_auc", n_repeats=50, random_state=0)
     imp = pd.Series(pi.importances_mean, index=clin).sort_values(ascending=False)
-    imp.to_csv(RESULTS / "plan_induction_importance.csv")
+    imp.to_csv(RESULTS / "induction_importance.csv")
     print("held-out permutation importance (AUROC drop):\n", imp.head(10).round(3).to_string())
 
 

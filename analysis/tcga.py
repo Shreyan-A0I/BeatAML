@@ -1,7 +1,7 @@
 """External test: is PEAR1 prognostic beyond its WGCNA module (module 3) in TCGA-LAML?
 
-    python scripts/get_tcga_laml.py      # once
-    python -m analysis.tcga_pear1
+    python scripts/get_tcga.py      # once
+    python -m analysis.tcga
 
 Scores use FROZEN Beat AML weights: genes are z-scored within each cohort, then
 projected on the PC1 loadings learned in Beat AML Waves1+2 (global scaling). So
@@ -127,7 +127,7 @@ def main():
           f.summary.loc[["PEAR1", "PEAR1_x_young"], ["exp(coef)", "exp(coef) lower 95%", "exp(coef) upper 95%", "p"]].round(3))
 
     t = pd.DataFrame(rows)
-    t.to_csv(RESULTS / "tcga_pear1.csv", index=False)
+    t.to_csv(RESULTS / "tcga.csv", index=False)
     with pd.option_context("display.width", 200):
         print(t.round(3).to_string(index=False))
 

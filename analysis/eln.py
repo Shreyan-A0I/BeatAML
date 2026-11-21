@@ -1,6 +1,6 @@
 """Plan section 5: whom does ELN misclassify? Residual-risk survival model.
 
-    python -m analysis.plan_eln
+    python -m analysis.eln
 
 Train on Beat AML Waves1+2, score once on Waves3+4 and on TCGA-LAML.
   base      Cox: age + ELN2017 (TCGA: age + cytogenetic risk, refit there)
@@ -8,7 +8,7 @@ Train on Beat AML Waves1+2, score once on Waves3+4 and on TCGA-LAML.
             frozen-weight cell-type scores, module eigengenes, PEAR1 (lambda by CV)
   LSC17     single score, coefficient fit with the same offset (the benchmark)
   RSF       random survival forest on age + ELN + all scores (non-linear comparison)
-Outputs results/tables/plan_eln_*.csv
+Outputs results/tables/eln_*.csv
 """
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from sksurv.metrics import cumulative_dynamic_auc
 from sksurv.util import Surv
 
 from analysis.common import RESULTS
-from analysis.plan_common import scores
+from analysis.scores import scores
 
 warnings.filterwarnings("ignore")
 rng = np.random.default_rng(0)
@@ -100,7 +100,7 @@ def main():
     lam = best[0]
     beta = cox_offset(Xtr, tr["T"].to_numpy(), tr.E.to_numpy(), lp(tr), lam)
     coef = pd.Series(beta, index=feats).sort_values()
-    coef.to_csv(RESULTS / "plan_eln_residual_coefs.csv")
+    coef.to_csv(RESULTS / "eln_residual_coefs.csv")
     print("residual coefficients:\n", coef.round(3).to_string())
     b_lsc = cox_offset(tr[["LSC17"]].to_numpy(), tr["T"].to_numpy(), tr.E.to_numpy(), lp(tr), 0.0)
     b_pear = cox_offset(tr[["PEAR1"]].to_numpy(), tr["T"].to_numpy(), tr.E.to_numpy(), lp(tr), 0.0)
@@ -184,10 +184,10 @@ def main():
                          "C_ELN": cindex(te["T"].to_numpy()[m], te.E.to_numpy()[m], R["ELN + age"][m]),
                          "C_residual": cindex(te["T"].to_numpy()[m], te.E.to_numpy()[m], r[m])})
     fair = pd.DataFrame(fair)
-    fair.to_csv(RESULTS / "plan_eln_fairness.csv", index=False)
+    fair.to_csv(RESULTS / "eln_fairness.csv", index=False)
 
     out = pd.DataFrame(rows)
-    out.to_csv(RESULTS / "plan_eln_results.csv", index=False)
+    out.to_csv(RESULTS / "eln_results.csv", index=False)
     with pd.option_context("display.width", 220, "display.max_columns", 20):
         print(out.round(3).to_string(index=False))
         print(fair.round(3).to_string(index=False))

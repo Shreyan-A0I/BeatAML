@@ -1,4 +1,4 @@
-"""Shared pieces for the analysis plan (literature/analysis_plan.pdf).
+"""Shared pieces for the analysis plan (literature/plan.pdf).
 
 Scores use ONE definition everywhere: genes z-scored within a cohort (Beat AML:
 on Waves1+2 rows), projected on PC1 loadings learned in Beat AML Waves1+2. This
@@ -15,7 +15,7 @@ import pandas as pd
 from analysis.common import ROOT, load_frame
 from analysis.part1_screen import imp_soft
 
-CACHE = ROOT / "data/interim/plan_scores.pkl"
+CACHE = ROOT / "data/interim/scores.pkl"
 
 # LSC17 (Ng et al., Nature 2016): weights on log2 expression; alias -> current symbol
 LSC17 = {"DNMT3B": 0.0874, "ZBTB46": -0.0347, "NYNRIN": 0.00865, "ARHGAP22": -0.0138, "LAPTM4B": 0.00582,
@@ -93,7 +93,7 @@ def scores(tcga_genes=None, rebuild=False) -> dict:
     """Frozen-weight scores for Beat AML (560 RNA specimens) and TCGA-LAML."""
     if CACHE.exists() and not rebuild:
         return pickle.loads(CACHE.read_bytes())
-    from analysis.tcga_pear1 import load_tcga
+    from analysis.tcga import load_tcga
     E_b, clin = beat_expression()
     E_t, S_t = load_tcga()
     E_t = harmonise(E_t)

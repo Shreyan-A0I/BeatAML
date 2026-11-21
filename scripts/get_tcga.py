@@ -1,6 +1,6 @@
 """Download TCGA-LAML (GDC open tier): STAR-Counts expression + clinical, into data/raw/tcga_laml/.
 
-    python scripts/get_tcga_laml.py
+    python scripts/get_tcga.py
 """
 import io, json, tarfile, urllib.request
 from pathlib import Path

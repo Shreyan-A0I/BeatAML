@@ -1,6 +1,6 @@
 """Plan section 4: who fails standard induction? (outcome: refractory vs CR/CRi)
 
-    python -m analysis.plan_induction
+    python -m analysis.induction
 
 Cohort: Beat AML diagnosis RNA-seq specimens of patients given standard induction
 chemotherapy with a recorded response. Develop with repeated nested CV in Waves1+2;
@@ -26,7 +26,7 @@ from sklearn.preprocessing import StandardScaler
 from xgboost import XGBClassifier
 
 from analysis.common import RESULTS, load_frame
-from analysis.plan_common import drug_factors, scores
+from analysis.scores import drug_factors, scores
 
 warnings.filterwarnings("ignore")
 LABS = ["wbcCount", "%.Blasts.in.BM", "%.Blasts.in.PB", "LDH", "hemoglobin", "plateletCount", "albumin", "creatinine"]
@@ -124,7 +124,7 @@ def main():
             rows.append({"features": fs, "model": mname, "n": len(ys), "cv_auroc": np.mean(aucs), "cv_sd": np.std(aucs)})
             print(rows[-1], flush=True)
     cv = pd.DataFrame(rows)
-    cv.to_csv(RESULTS / "plan_induction_cv.csv", index=False)
+    cv.to_csv(RESULTS / "induction_cv.csv", index=False)
 
     # pre-declared winner among sets available for every patient (drug set evaluated on a subset)
     full = cv[~cv.features.str.endswith("drug factors")].sort_values("cv_auroc", ascending=False).iloc[0]
@@ -174,15 +174,15 @@ def main():
             for lab, m in [("age<60", inf.age.to_numpy() < 60), ("age>=60", inf.age.to_numpy() >= 60)]:
                 if len(set(yt[m])) == 2:
                     sg.append({"group": lab, "n": int(m.sum()), "AUROC": roc_auc_score(yt[m], p[m])})
-            pd.DataFrame(sg).to_csv(RESULTS / "plan_induction_subgroups.csv", index=False)
+            pd.DataFrame(sg).to_csv(RESULTS / "induction_subgroups.csv", index=False)
             print(pd.DataFrame(sg).round(3).to_string(index=False))
             if mname.startswith("logistic"):
                 coef = pd.Series(gs.best_estimator_[-1].coef_[0], index=cols).sort_values()
-                coef[coef != 0].to_csv(RESULTS / "plan_induction_coefs.csv")
+                coef[coef != 0].to_csv(RESULTS / "induction_coefs.csv")
                 print("coefficients (refractory +):\n", coef[coef.abs() > 1e-6].round(3).to_string())
         test_rows.append(rec)
     t = pd.DataFrame(test_rows)
-    t.to_csv(RESULTS / "plan_induction_test.csv", index=False)
+    t.to_csv(RESULTS / "induction_test.csv", index=False)
     with pd.option_context("display.width", 250, "display.max_columns", 30):
         print(cv.round(3).to_string(index=False))
         print(t.round(3).T.to_string())

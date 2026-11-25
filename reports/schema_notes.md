@@ -75,8 +75,14 @@ free. Keep `patient_groups()` for any analysis that relaxes the flags.
    RMSE comparison if ignored.
 
 4. **8,468 curves are `curve_type == "increasing"`** — viability rises with
-   dose. AUC there does not mean resistance. `load_auc_long()` drops them by
-   default.
+   dose. Two kinds: 7,093 never fell below 50% viability (median AUC 266; the
+   drug did not work, an informative resistant result) and 1,375 dipped below
+   50% then rose (median AUC 118; non-monotone, and half would be labelled
+   "truly sensitive"). **Convention (team decision 2026-11-20):**
+   `load_auc_long()` defaults to `curves="all"`, the manuscript's convention.
+   `curves="clean"` (keeps the first kind, drops the second) is the sensitivity
+   analysis; `curves="decreasing"` is the original repo default. On the n=429 matrix, missingness is 39.0%
+   under "clean" vs 46.1% under "decreasing".
 
 5. **`paper_inclusion` is `True` for every row** — useless as a filter.
 
@@ -94,7 +100,8 @@ free. Keep `patient_groups()` for any analysis that relaxes the flags.
    Leukapheresis specimens with Peripheral Blood.
 
 9. **`BA2563`** is flagged `manuscript_inhibitor == "yes"` but has exactly one
-   AUC row in the whole table, and it is an increasing curve — hence 430 → 429.
+   AUC row in the whole table, and it is a dip-then-rise increasing curve —
+   dropped under the default, hence 430 → 429.
 
 10. **ELN2017 needs cleaning.** Six of its nine levels are non-calls
     (`NonInitial` 333, `NonAML` 29, `FavorableOrIntermediate` 15, …). Real
@@ -164,3 +171,10 @@ Doing both is also defensible: A as the headline, B as a robustness check.
 - `src/` contains only `load.py`; the README's layout also lists features,
   models and evaluation modules. No `__init__.py` (namespace package — fine).
 - The project is **not a git repo yet** (`git init` not run).
+
+## Conventions
+
+- **Module eigengenes** use one global scaling (manuscript `predict.modules()`),
+  fit on Waves1+2. **Cell-type scores** use per-tissue scaling. Mixing these up
+  changes downstream rankings (it once turned a module-3 rank of 6 into 46).
+- **AUC curves**: `curves="all"` (paper) by default; "clean" as sensitivity (see trap 4).

@@ -14,6 +14,9 @@ torch               # beta-VAE; CPU build is plenty at this sample size
 xgboost
 shap
 
+# stats
+statsmodels
+
 # survival
 lifelines
 scikit-survival
@@ -30,4 +33,5 @@ umap-learn
 
 # hygiene
 ruff
+pytest
 nbstripout

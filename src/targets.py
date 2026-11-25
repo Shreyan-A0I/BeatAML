@@ -84,7 +84,7 @@ class RecommenderData:
 def load_recommender_data(statuses: Iterable[str] = USE_STATUS) -> RecommenderData:
     """Modeling cohort (n = 429) with a patient x drug raw AUC matrix.
 
-    AUC rows keep `load_auc_long()`'s defaults (decreasing, converged curves) and
+    AUC rows keep `load_auc_long()`'s defaults (curves="all" = paper convention, converged) and
     the paper's drug statuses. Patients are those of build_modeling_frame():
     RNA-seq AND drug screen, one specimen of each per patient.
     """

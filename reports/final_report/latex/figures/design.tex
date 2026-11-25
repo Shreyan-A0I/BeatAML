@@ -1,0 +1,25 @@
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+ box/.style={draw=gray!50,rounded corners=2pt,minimum height=1.15cm,font=\small,align=center,text width=3.3cm},
+ train/.style={box,fill=lightblue},
+ test/.style={box,fill=orange!15},
+ clin/.style={box,fill=green!9},
+ ext/.style={box,fill=gray!8},
+ tier/.style={font=\scriptsize,gray,align=center},
+ arr/.style={-{Stealth[length=2mm]},gray!70,thick}]
+ \node[train] (cv) at (0,0) {\textbf{Waves1+2}\\266 patients\\5-fold CV, model choice};
+ \node[test]  (ho) at (4.8,0) {\textbf{Waves3+4}\\163 patients\\holdout, scored once};
+ \node[clin]  (cl) at (4.8,-2.6) {\textbf{Induction cohort}\\239 patients\\CR vs refractory; OS};
+ \node[ext]   (tc) at (9.6,-2.6) {\textbf{TCGA-LAML}\\138 non-APL patients\\overall survival};
+ \node[tier,below=2pt of ho] {\textit{Tier 1}: ranking vs observed screen};
+ \node[tier,below=2pt of cl] {\textit{Tier 2}: retrospective, same programme};
+ \node[tier,below=2pt of tc] {\textit{Tier 3}: external};
+ \draw[arr] (cv) -- node[above,font=\scriptsize,gray]{freeze} (ho);
+ \draw[arr] (cv.south) |- node[pos=0.3,left,font=\scriptsize,gray,align=right]{out-of-fold\\predictions} (cl.west);
+ \draw[arr] (ho.south) ++(0,-0.45) -- node[right,font=\scriptsize,gray]{holdout predictions} (cl.north);
+ \draw[arr] (cl) -- node[above,font=\scriptsize,gray]{frozen model} (tc);
+\end{tikzpicture}
+\caption{Study design. All modelling choices were made by cross-validation within Waves1+2. The frozen model was then scored once on Waves3+4 (ranking validation), related to induction response and survival using predictions that are out-of-sample for every patient, and applied unchanged to TCGA-LAML.}
+\label{fig:design}
+\end{figure}

@@ -1,0 +1,125 @@
+\begin{thebibliography}{14}
+\providecommand{\natexlab}[1]{#1}
+\providecommand{\url}[1]{\texttt{#1}}
+\expandafter\ifx\csname urlstyle\endcsname\relax
+  \providecommand{\doi}[1]{doi: #1}\else
+  \providecommand{\doi}{doi: \begingroup \urlstyle{rm}\Url}\fi
+
+\bibitem[Bottomly et~al.(2022)Bottomly, Long, Schultz, Kurtz, Tognon, Johnson,
+  et~al.]{bottomly2022}
+Daniel Bottomly, Nicola Long, Anna~Reister Schultz, Stephen~E. Kurtz,
+  Cristina~E. Tognon, Kara Johnson, et~al.
+\newblock Integrative analysis of drug response and clinical outcome in acute
+  myeloid leukemia.
+\newblock \emph{Cancer Cell}, 40\penalty0 (8):\penalty0 850--864.e9, 2022.
+\newblock \doi{10.1016/j.ccell.2022.07.002}.
+
+\bibitem[DiNardo et~al.(2020)DiNardo, Jonas, Pullarkat, Thirman, Garcia, Wei,
+  et~al.]{dinardo2020viale}
+Courtney~D. DiNardo, Brian~A. Jonas, Vinod Pullarkat, Michael~J. Thirman,
+  Jacqueline~S. Garcia, Andrew~H. Wei, et~al.
+\newblock Azacitidine and venetoclax in previously untreated acute myeloid
+  leukemia.
+\newblock \emph{New England Journal of Medicine}, 383\penalty0 (7):\penalty0
+  617--629, 2020.
+\newblock \doi{10.1056/NEJMoa2012971}.
+
+\bibitem[D{\"o}hner et~al.(2017)D{\"o}hner, Estey, Grimwade, Amadori,
+  Appelbaum, B{\"u}chner, et~al.]{dohner2017eln}
+Hartmut D{\"o}hner, Elihu Estey, David Grimwade, Sergio Amadori, Frederick~R.
+  Appelbaum, Thomas B{\"u}chner, et~al.
+\newblock Diagnosis and management of {AML} in adults: 2017 {ELN}
+  recommendations from an international expert panel.
+\newblock \emph{Blood}, 129\penalty0 (4):\penalty0 424--447, 2017.
+\newblock \doi{10.1182/blood-2016-08-733196}.
+
+\bibitem[Kornauth et~al.(2022)Kornauth, Pemovska, Vladimer, Bayer, Bergmann,
+  Eder, et~al.]{kornauth2022}
+Christoph Kornauth, Tea Pemovska, Gregory~I. Vladimer, G{\"u}nther Bayer,
+  Michael Bergmann, Sandra Eder, et~al.
+\newblock Functional precision medicine provides clinical benefit in advanced
+  aggressive hematologic cancers and identifies exceptional responders.
+\newblock \emph{Cancer Discovery}, 12\penalty0 (2):\penalty0 372--387, 2022.
+\newblock \doi{10.1158/2159-8290.CD-21-0538}.
+
+\bibitem[Malani et~al.(2022)Malani, Kumar, Br{\"u}ck, Kontro, Yadav, Hellesøy,
+  et~al.]{malani2022}
+Disha Malani, Ashwini Kumar, Oscar Br{\"u}ck, Mika Kontro, Bhagwan Yadav,
+  Monica Hellesøy, et~al.
+\newblock Implementing a functional precision medicine tumor board for acute
+  myeloid leukemia.
+\newblock \emph{Cancer Discovery}, 12\penalty0 (2):\penalty0 388--401, 2022.
+\newblock \doi{10.1158/2159-8290.CD-21-0410}.
+
+\bibitem[Tyner et~al.(2018)Tyner, Tognon, Bottomly, Wilmot, Kurtz, Savage,
+  et~al.]{tyner2018}
+Jeffrey~W. Tyner, Cristina~E. Tognon, Daniel Bottomly, Beth Wilmot, Stephen~E.
+  Kurtz, Samantha~L. Savage, et~al.
+\newblock Functional genomic landscape of acute myeloid leukaemia.
+\newblock \emph{Nature}, 562:\penalty0 526--531, 2018.
+\newblock \doi{10.1038/s41586-018-0623-z}.
+
+\bibitem[van Galen et~al.(2019)van Galen, Hovestadt, Wadsworth~II, Hughes,
+  Griffin, Battaglia, et~al.]{vangalen2019}
+Peter van Galen, Volker Hovestadt, Marc~H. Wadsworth~II, Travis~K. Hughes,
+  Gabriel~K. Griffin, Sofia Battaglia, et~al.
+\newblock Single-cell {RNA-seq} reveals {AML} hierarchies relevant to disease
+  progression and immunity.
+\newblock \emph{Cell}, 176\penalty0 (6):\penalty0 1265--1281.e24, 2019.
+\newblock \doi{10.1016/j.cell.2019.01.031}.
+
+\bibitem[Langfelder and Horvath(2008)]{langfelder2008wgcna}
+Peter Langfelder and Steve Horvath.
+\newblock {WGCNA}: an {R} package for weighted correlation network analysis.
+\newblock \emph{BMC Bioinformatics}, 9:\penalty0 559, 2008.
+\newblock \doi{10.1186/1471-2105-9-559}.
+
+\bibitem[Ng et~al.(2016)Ng, Mitchell, Kennedy, Chen, McLeod, Ibrahimova,
+  et~al.]{ng2016lsc17}
+Stanley W.~K. Ng, Amanda Mitchell, James~A. Kennedy, Weihsu~C. Chen, Jessica
+  McLeod, Narmin Ibrahimova, et~al.
+\newblock A 17-gene stemness score for rapid determination of risk in acute
+  leukaemia.
+\newblock \emph{Nature}, 540:\penalty0 433--437, 2016.
+\newblock \doi{10.1038/nature20598}.
+
+\bibitem[Pedregosa et~al.(2011)Pedregosa, Varoquaux, Gramfort, Michel, Thirion,
+  Grisel, et~al.]{pedregosa2011sklearn}
+Fabian Pedregosa, Ga{\"e}l Varoquaux, Alexandre Gramfort, Vincent Michel,
+  Bertrand Thirion, Olivier Grisel, et~al.
+\newblock Scikit-learn: Machine learning in {P}ython.
+\newblock \emph{Journal of Machine Learning Research}, 12:\penalty0 2825--2830,
+  2011.
+
+\bibitem[Chen and Guestrin(2016)]{chen2016xgboost}
+Tianqi Chen and Carlos Guestrin.
+\newblock {XGBoost}: A scalable tree boosting system.
+\newblock In \emph{Proceedings of the 22nd ACM SIGKDD International Conference
+  on Knowledge Discovery and Data Mining}, pages 785--794, 2016.
+\newblock \doi{10.1145/2939672.2939785}.
+
+\bibitem[Davidson-Pilon(2019)]{davidson2019lifelines}
+Cameron Davidson-Pilon.
+\newblock lifelines: survival analysis in {P}ython.
+\newblock \emph{Journal of Open Source Software}, 4\penalty0 (40):\penalty0
+  1317, 2019.
+\newblock \doi{10.21105/joss.01317}.
+
+\bibitem[{Cancer Genome Atlas Research Network}(2013)]{tcga2013laml}
+{Cancer Genome Atlas Research Network}.
+\newblock Genomic and epigenomic landscapes of adult de novo acute myeloid
+  leukemia.
+\newblock \emph{New England Journal of Medicine}, 368\penalty0 (22):\penalty0
+  2059--2074, 2013.
+\newblock \doi{10.1056/NEJMoa1301689}.
+
+\bibitem[Cerami et~al.(2012)Cerami, Gao, Dogrusoz, Gross, Sumer, Aksoy,
+  et~al.]{cerami2012cbioportal}
+Ethan Cerami, Jianjiong Gao, Ugur Dogrusoz, Benjamin~E. Gross, Selcuk~Onur
+  Sumer, B{\"u}lent~Arman Aksoy, et~al.
+\newblock The {cBio} cancer genomics portal: an open platform for exploring
+  multidimensional cancer genomics data.
+\newblock \emph{Cancer Discovery}, 2\penalty0 (5):\penalty0 401--404, 2012.
+\newblock \doi{10.1158/2159-8290.CD-12-0095}.
+
+\end{thebibliography}

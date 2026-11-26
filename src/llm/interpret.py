@@ -44,7 +44,7 @@ TEAM_FACTS = [
 ]
 LIMITS = [
     "FIMM measures drug response as sDSS (normalised to healthy controls, higher = more sensitive); Beat AML uses AUC. We use minus sDSS so higher = more resistant in both.",
-    "Stemness is adjusted with LSC17 in both cohorts because the van Galen HSC-like signature is not available for FIMM, so this is not the identical adjustment used in the earlier Beat AML analysis.",
+    "Stemness is adjusted with LSC17 in BOTH cohorts (the same method), but the earlier Beat AML analysis used the van Galen HSC-like score, which is not available for FIMM, so these results are not directly comparable to that earlier adjustment.",
     "FIMM is a Helsinki cohort that mixes diagnosis and relapsed/refractory samples and two culture media (CM and MCM); both are covariates. Beat AML is mostly first-timepoint samples.",
 ]
 
@@ -82,6 +82,16 @@ def build_evidence() -> list[tuple[str, str]]:
     b = s["agreement_pear1_only"]
     ev.append(f"Without any adjustment the agreement is weaker: Spearman {b['spearman_effects']:+.2f} (p = {b['spearman_p']:.3f}); {b['same_sign_in_fimm']} of {b['n_beat_significant_q10']} significant drugs agree in direction.")
     sig = t[t["q_beat"] < 0.10].sort_values("beta_beat")
+    same = sig[(sig["beta_beat"] * sig["beta_fimm"]) > 0]
+    n_same_sig = int((same["p_fimm"] < 0.05).sum())
+    ev.append(f"Of the {len(same)} same-direction drugs among those {len(sig)}, only {n_same_sig} reach p < 0.05 on their own in FIMM; "
+              f"for most, the FIMM effect is smaller than in Beat AML and not individually significant (FIMM has only {c['fimm_patients']} patients).")
+    tested = t.dropna(subset=["p_fimm"])
+    hits = tested[tested["p_fimm"] < 0.05].sort_values("p_fimm")
+    hit_txt = "; ".join(f"{r['drug_fimm']} ({str(r['mechanism'])[:40]}) effect {r['beta_fimm']:+.2f}, p = {r['p_fimm']:.3f}" for _, r in hits.iterrows())
+    ev.append(f"Multiple testing: {len(tested)} drugs were tested in FIMM and {len(hits)} have p < 0.05: {hit_txt}. "
+              f"With {len(tested)} tests, about {0.05 * len(tested):.1f} such hits are expected by chance alone, "
+              f"so only venetoclax (pre-stated) is convincing; the others are leads to follow up, not findings.")
     for _, r in sig.iterrows():
         mech = r["mechanism"] if isinstance(r["mechanism"], str) else "unknown mechanism"
         ev.append(f"Drug {r['drug_fimm']} ({mech[:70]}): Beat AML effect {r['beta_beat']:+.2f} (q = {r['q_beat']:.3f}), FIMM effect {r['beta_fimm']:+.2f} (p = {r['p_fimm']:.3f}).")
@@ -96,7 +106,11 @@ Rules:
 2. Never invent numbers, p-values, drug names or studies. If something is not in the evidence, say it is unknown.
 3. General biology ideas are allowed ONLY inside "hypotheses", and each must be marked speculative.
 4. These are ex vivo and retrospective results. Do not give treatment advice.
-5. Reply with ONE JSON object and nothing else."""
+5. "strength": use "strong" ONLY for a single pre-stated drug that replicated with two-sided p < 0.01. Correlations, sign tests and counts across many drugs are at most "moderate". Borderline, one-sided-only or not-replicated results are "weak". Do not call the Spearman correlation strong.
+6. Caveats must restate the "Limitation" items or the multiple-testing evidence. Do not make new claims about how the analysis was done.
+7. Validation steps must be NEW. Everything listed under "Team result" is already done (PEAR1 survival in Beat AML and TCGA, the Beat AML drug screen, pathway enrichment, trametinib RAS adjustment). Do not propose repeating it; propose how to test or extend it instead.
+8. Mention the follow-up leads (drugs with FIMM p < 0.05 other than venetoclax) as leads only, and say that most same-direction drugs are not individually significant in FIMM.
+9. Reply with ONE JSON object and nothing else."""
 
 SCHEMA = """{
   "plain_summary": "under 120 words, simple language, cite ids like [E3] right after every number",
@@ -242,6 +256,18 @@ def check_report(report: dict, evidence) -> dict:
             "numbers_uncited": stats["uncited"]}
 
 
+def cap_strength(report: dict, evidence) -> int:
+    """'strong' is allowed only if a cited item is a pre-stated drug that replicated. Otherwise downgrade to 'moderate'."""
+    text = dict(evidence)
+    n = 0
+    for f in report.get("findings", []):
+        if str(f.get("strength", "")).lower() == "strong":
+            if not any("Result: replicated" in text.get(i, "") for i in f.get("evidence", []) if isinstance(i, str)):
+                f["strength"], f["strength_note"] = "moderate", "downgraded from strong by the script"
+                n += 1
+    return n
+
+
 # ----------------------------------------------------------------------------- report
 def render_md(report, critic, check, evidence, model) -> str:
     fl = check["flags"]
@@ -258,7 +284,7 @@ def render_md(report, critic, check, evidence, model) -> str:
     for title, key in (("Findings", "findings"), ("Hypotheses (speculative)", "hypotheses")):
         L += ["", f"## {title}"]
         for i, f in enumerate(report.get(key, [])):
-            tag = f" [{f.get('strength')}]" if f.get("strength") else ""
+            tag = f" [{f.get('strength')}{', ' + f['strength_note'] if f.get('strength_note') else ''}]" if f.get("strength") else ""
             L.append(f"- {f.get('statement', '')}{tag} — evidence: {', '.join(f.get('evidence', [])) or 'none'}{mark(f'{key}[{i}]')}")
     L += ["", "## Suggested validation steps"]
     for i, v in enumerate(report.get("validation_steps", []), 1):
@@ -305,6 +331,7 @@ def main() -> None:
         critic = ask_json(a.host, a.model, CRITIC_SYSTEM,
                           "Evidence:\n" + "\n".join(f"[{i}] {t}" for i, t in evidence)
                           + "\n\nDraft interpretation:\n" + json.dumps(report, indent=1))
+    cap_strength(report, evidence)
     check = check_report({**report, **({"critic": critic} if critic else {})}, evidence)
     (OUT / "interpretation.json").write_text(json.dumps({"model": a.model, "report": report, "critic": critic, "check": check}, indent=2))
     (OUT / "interpretation.md").write_text(render_md(report, critic, check, evidence, a.model))

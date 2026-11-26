@@ -137,8 +137,8 @@ def installed_models(host: str) -> list[str]:
 
 
 def chat(host: str, model: str, system: str, user: str, temperature: float = 0.2, timeout: int = 900) -> str:
-    payload = {"model": model, "stream": False, "format": "json",
-               "options": {"temperature": temperature, "num_ctx": 8192},
+    payload = {"model": model, "stream": False, "format": "json", "think": False,
+               "options": {"temperature": temperature, "num_ctx": 8192, "num_predict": 3000},
                "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}
     try:
         return _post(host, "/api/chat", payload, timeout)["message"]["content"]
@@ -173,6 +173,10 @@ def ask_json(host, model, system, user, retries=1) -> dict:
         try:
             return parse_json(raw)
         except json.JSONDecodeError:
+            dump = OUT / "raw_reply.txt"
+            dump.parent.mkdir(parents=True, exist_ok=True)
+            dump.write_text(raw)
+            print(f"  attempt {attempt + 1}: bad JSON ({len(raw)} chars). Raw reply saved to {dump}\n  starts: {raw[:200]!r}\n  ends:   {raw[-200:]!r}")
             msg = user + "\n\nYour last reply was not valid JSON. Reply again with ONLY the JSON object."
     sys.exit("The model did not return valid JSON after a retry. Try a larger model or --model.")
 

@@ -49,3 +49,13 @@ literature/
 # papers (kept locally in literature/)
 bottomly_2022.pdf
 vangalen_2019.pdf
+
+# LaTeX build artifacts (main.pdf is kept tracked)
+reports/final_report/latex/*.aux
+reports/final_report/latex/*.bbl
+reports/final_report/latex/*.blg
+reports/final_report/latex/*.fdb_latexmk
+reports/final_report/latex/*.fls
+reports/final_report/latex/*.log
+reports/final_report/latex/*.out
+reports/final_report/latex/*.synctex.gz

@@ -2,7 +2,7 @@
 \documentclass[11pt,logo,nonumbering]{preprint}
 \usepackage{amsmath,amssymb,mathtools,booktabs,tabularx,array,microtype}
 \usepackage{natbib}
-\usepackage{xcolor,tikz,fancyhdr,placeins,pgfplots,multirow}
+\usepackage{xcolor,colortbl,tikz,fancyhdr,placeins,pgfplots,multirow}
 \pgfplotsset{compat=1.18}
 \captionsetup{font=small,labelfont=bf}
 \usepackage[colorlinks=true,linkcolor=blue!45!black,citecolor=blue!45!black,urlcolor=blue!55!black]{hyperref}
@@ -14,82 +14,111 @@
 \definecolor{sciencegreen}{RGB}{0,168,150}
 \definecolor{darkgreen}{RGB}{0,128,96}
 \definecolor{cautionorange}{RGB}{210,112,45}
-\hypersetup{pdftitle={Maturation-Aware Drug Prioritization for Acute Myeloid Leukemia},
+\hypersetup{pdftitle={Maturation-Aware Molecular Proxies for Functional Drug Screening in Acute Myeloid Leukemia},
  pdfauthor={Vania Halim},pdfsubject={Computational medicine project report}}
 \newcommand{\z}{z}
 \newcommand{\pk}{\text{prec@5}}
 \newcolumntype{Y}{>{\raggedright\arraybackslash}X}
-\title{Maturation-Aware Drug Prioritization for Acute Myeloid Leukemia}
+\title{Maturation-Aware Molecular Proxies for Functional Drug Screening in Acute Myeloid Leukemia}
 \author{
-  \textit{Predicting the ex vivo drug screen from molecular profiles, and testing its clinical relevance}\\[0.8em]
+  \textit{A patient-level drug recommender and an assessment of its clinical relevance}\\[0.8em]
   % TODO: add teammates' names and Andrew IDs
-  \textbf{Vania Halim}\quad\textbf{[Teammate 2]}\quad\textbf{[Teammate 3]}\\
+  \textbf{Arrio Gonsalves}\quad\textbf{Shreyan Nalwad}\quad\textbf{Vania Halim}\\
   Carnegie Mellon University\\
-  \texttt{vphalim@andrew.cmu.edu}\\[0.5em]
+  \texttt{\{agonsalves,snalwad,vphalim,\}@andrew.cmu.edu}\\[0.5em]
   {\small Computational Medicine project report}
 }
 \date{November 2026}
 \begin{document}
 \maketitle
 \begin{abstract}
-Ex vivo drug screens can show which drugs kill a patient's leukemia cells, but they need fresh cells, take days to weeks and run at few centers, whereas sequencing is routine. We ask whether a patient's molecular profile at diagnosis can rank the drugs on the Beat AML screen in the order the screen itself would, and whether that ranking carries clinical information. The target is drug-standardized AUC, so that a ranking must find patient-specific sensitivity rather than reproduce general drug potency. A per-drug ridge model on mutations, fusions, clinical variables and the interpretable expression features of \citet{bottomly2022} (six cell-type maturation scores, nine co-expression modules, PEAR1 and LSC17) was selected by cross-validation in Waves1+2 (266 patients, 116 drugs) and scored once on Waves3+4 (163 patients). On the holdout, 46\% of its top-5 recommendations were drugs the patient was truly sensitive to, against 38\% for genotype-matched rules and 25\% by chance (paired gain $+0.074$, 95\% CI $[0.034, 0.117]$). Most of the gain comes from the maturation scores, and it is concentrated in patients without an actionable mutation, for whom the rules do no better than chance. Venetoclax response was predicted with Spearman $\rho=0.77$. The clinical arm was negative. Observed ex vivo cytarabine sensitivity did not predict response to induction chemotherapy (odds ratio $1.02$ per SD, $p=0.94$, 145 patients), and neither did the predicted value. The predicted score was associated with overall survival after adjustment for ELN2017 risk and age in Beat AML (hazard ratio $1.33$ per SD, $p=0.005$), but this did not replicate in TCGA-LAML (HR $0.94$, $[0.74, 1.19]$). Molecular profiles can stand in for the ex vivo screen as a drug-ranking tool; we found no evidence that either the screen or our predictions of it, for cytarabine, anticipate clinical response.
+Ex vivo drug screens show which drugs kill a patient's leukemia cells, but they need fresh cells, take weeks, and run at few centers, whereas sequencing is routine. We present a recommender with potential to serve as a proxy for these screens. Trained on Waves 1+2 of Beat AML \citep{bottomly2022,beataml2} and tested on Waves 3+4, a per-drug ridge model uses mutations, fusions, clinical variables, maturation scores, co-expression modules, PEAR1 and LSC17. Its top five drugs are truly sensitive for 46\% of patients (precision@5), against 38\% for genotype rules and 25\% by chance; full-ranking Spearman is 0.27 versus 0.07. The gain is largest in patients without an actionable lesion, where genotype rules do no better than chance. Prediction is highest for venetoclax (Spearman 0.77), consistent with progenitor-versus-monocytic biology: monocytic leukemias depend on MCL1 rather than BCL2 and resist venetoclax \citep{bottomly2022,pei2020}. MEK inhibitors are among the next most accurate. Clinical validation is limited and rests mostly on cytarabine, the induction backbone. Neither observed nor predicted ex vivo cytarabine sensitivity was associated with induction response (odds ratio $1.02$ per SD, 95\% CI $[0.67, 1.54]$, $p=0.94$, $n=145$). After adjustment for ELN2017 risk and age, the predicted score was associated with overall survival in Beat AML (HR $1.33$ per SD, 95\% CI $[1.09, 1.62]$, $p=0.005$), but not in TCGA-LAML (HR $0.94$, 95\% CI $[0.74, 1.19]$). TCGA used a different expression platform, an approximate ELN2017 risk group and fewer patients, so its null may partly reflect measurement differences.
 \end{abstract}
 
 \section{Introduction and motivation}
-Acute myeloid leukemia (AML) is treated mostly by risk group. Fit patients receive intensive induction (``7+3'' cytarabine and an anthracycline), unfit patients receive venetoclax with a hypomethylating agent \citep{dinardo2020viale}, and targeted inhibitors are added when the tumor carries an actionable lesion such as FLT3-ITD or an IDH mutation \citep{dohner2017eln}. Many patients have no actionable lesion, and response within a risk group varies widely.
+Acute myeloid leukemia (AML) is treated mostly by risk group. Fit patients receive intensive induction (``7+3'' cytarabine and an anthracycline), unfit patients receive venetoclax with a hypomethylating agent \citep{dinardo2020viale}, and targeted inhibitors are added when the tumor carries an actionable lesion such as FLT3-ITD or an IDH mutation \citep{dohner2017eln}. A genomic alteration is an actionable lesion when a targeted drug is an established or investigational option for it. Many patients have no actionable lesion, and response within a risk group varies widely.
 
 Functional precision medicine tests drugs directly on a patient's cells. Small prospective studies report clinical benefit when treatment follows such screens \citep{kornauth2022,malani2022}. The Beat AML programme screened about 120 drugs on primary AML samples alongside exome and RNA sequencing \citep{tyner2018,bottomly2022}. \citet{bottomly2022} found that drug response depends on the tumor's maturation state, captured by six cell-type scores derived from single-cell data \citep{vangalen2019}: venetoclax works on progenitor-like tumors and fails on monocytic ones, and MEK inhibitors show the reverse. They also found that mutation effects on drug response depend on cell type. They used these results descriptively and did not build a predictor.
 
-\textbf{The task.} For each patient, rank the drugs on the panel from most to least likely to be effective, using only data available at diagnosis: mutations, fusions, clinical variables and bulk RNA-seq. A good ranking places drugs the patient's cells were truly sensitive to near the top.
-
-\textbf{Hypotheses.} (H1) A learned model beats clinician-style genotype-matched rules at the top of the ranking, on patients not used for any modelling choice. (H2) Maturation features add to genomics. (H3) The predicted sensitivity to cytarabine, the backbone of induction, relates to induction response and survival.
+\citet{bottomly2022} linked PEAR1 expression and maturation-state scores to overall survival in AML. Because maturation state also shapes drug response, we asked whether these cell-type scores, used as model features, could predict not only survival but also ex vivo drug sensitivity, and so built a drug recommender. For each patient, the task is to rank the drugs on the panel from most to least likely to be effective, using only data available at diagnosis: mutations, fusions, clinical variables and bulk RNA-seq. A good ranking places drugs the patient's cells were truly sensitive to near the top. We test three hypotheses. (H1) A learned model beats clinician-style genotype-matched rules at the top of the ranking, on patients not used for any modelling choice. (H2) Maturation features add to genomics. (H3) The predicted sensitivity to cytarabine, the backbone of induction, relates to induction response and survival.
 
 \section{Related work and background}
-\textbf{Ex vivo screens in AML.} Beat AML released drug response, exome and RNA-seq data for several hundred patients \citep{tyner2018} and extended them in a second release with clinical follow-up \citep{bottomly2022}. That study introduced the maturation-state view of drug response, the nine non-redundant co-expression modules computed with WGCNA \citep{langfelder2008wgcna}, and PEAR1 expression as a prognostic marker. The LSC17 stemness score is an independent 17-gene prognostic signature \citep{ng2016lsc17}.
+Beat AML released drug response, exome and RNA-seq data for several hundred patients \citep{tyner2018} and extended them in a second release with clinical follow-up \citep{bottomly2022}. That study introduced the maturation-state view of drug response, the nine non-redundant co-expression modules computed with WGCNA \citep{langfelder2008wgcna}, and PEAR1 expression as a prognostic marker. The LSC17 stemness score is a 17-gene signature \citep{ng2016lsc17}. It was derived from gene expression in leukemia stem cell-enriched populations and summarizes how stem-like a tumor's expression profile is. It is computed as a weighted sum of the 17 genes from bulk RNA-seq, and higher scores predict poorer survival in AML independently of standard risk groups.
 
-\textbf{Functional precision medicine.} Prospective studies that treat patients according to their ex vivo screens report response in a subset \citep{kornauth2022,malani2022}. Those studies require the screen itself. Our question is whether the screen's information can be recovered from molecular data alone, which would make it available to every patient.
+Prospective studies have tested whether treating patients according to their ex vivo screens helps. In a trial of 143 patients with advanced aggressive hematologic cancers, 56 were treated according to single-cell functional screening, and the authors report clinical benefit in a subset \citep{kornauth2022}. A functional precision medicine tumor board for AML used ex vivo profiling to recommend drugs, and 37 relapsed or refractory patients were treated on those recommendations, with a reported objective response rate of 59\% \citep{malani2022}. 
 
-\textbf{What is different here.} Most drug-response prediction work reports per-drug correlation across patients. A clinician needs the reverse: an ordering of drugs \emph{within one patient}. We therefore grade within-patient rankings against a drug-standardized target, compare against an explicit genomic-rule baseline, and test the predictions against clinical endpoints that are never used in training.
+These studies show that the screen can guide treatment, but each one requires running the screen on the patient's own fresh cells, which takes days to weeks and is available at few centers. Our question is whether the screen's information can be recovered from molecular data alone, which would make it available to every patient. Most drug-response prediction work reports per-drug correlation across patients, whereas a clinician needs an ordering of drugs within one patient. We therefore grade within-patient rankings against drug-standardized AUC and compare them with an explicit genomic-rule baseline. The baseline prioritizes drugs whose curated targets match one of a patient's actionable lesions, then ranks the rest by average sensitivity across the training cohort. This is roughly what a clinician would do with genetic results.
 
 \section{Methodology}
 \subsection{Data and cohorts}
 We use the Beat AML waves 1--4 release \citep{bottomly2022}. The modelling cohort is the 429 patients with both RNA-seq and a drug screen, one specimen of each per patient. Following the paper, Waves1+2 (266 patients) are the training cohort and Waves3+4 (163 patients, accrued later) are the test cohort. We keep the 116 drugs tested on at least 60 Waves1+2 patients; this choice uses only how many patients were tested, not their results. The patient-by-drug matrix is 28\% missing (35{,}932 tested pairs; median 92 drugs per patient), and each patient is graded only on drugs tested on their cells. Figure~\ref{fig:design} shows how the cohorts are used.
 
+Before modelling, we explored both waves independently (Appendix~\ref{app:explore}). The exploration supports the design in three ways. Drugs share a general sensitivity factor (median pairwise Spearman correlation 0.29), which is why we standardize the target. Missing drug measurements are not random, which is why models are fit per drug. The six cell-type score distributions overlap closely across waves, so the projection learned on Waves1+2 transfers to Waves3+4. 
+
+However, the test wave has more initial-diagnosis samples, fewer residual-disease samples and shorter follow-up, and ELN2017 is missing for about one patient in four. The stage difference means Waves3+4 drug responses come from a different cell mix, so part of the holdout result may reflect that mix rather than the molecular model. Shorter follow-up leaves fewer late events, so the holdout survival result cannot speak to outcomes beyond about 3 years. The ELN-adjusted results apply only to patients with a risk call, and Waves3+4 has more adverse-risk patients (32\% vs 27\%), where adjustment matters most.
+
 \input{figures/design}
 
-\subsection{Target}
-Raw AUC mixes drug potency (some drugs kill nearly every sample at the tested doses), the patient's general sensitivity, and patient-specific response. Ranking by raw AUC mostly reproduces potency, which is the same for every patient. The target is therefore the drug-standardized AUC,
+\subsection{Drug-standardized AUC target}
+Raw AUC mixes drug potency (some drugs kill nearly every sample at the tested doses), the patient's general sensitivity, and patient-specific response. Ranking by raw AUC mostly reproduces potency, which is the same for every patient. Drugs also share a general sensitivity factor: the median pairwise correlation of their AUCs is 0.29 (Appendix Figure~\ref{fig:drugcorr}). A model can therefore look good by learning general sensitivity rather than drug-specific response, which the standardized target and the baseline comparison are designed to guard against. The target is therefore the drug-standardized AUC,
 \begin{equation}
  \z_{pd}=\frac{\mathrm{AUC}_{pd}-\mu_d}{\sigma_d},
 \end{equation}
-with $\mu_d,\sigma_d$ estimated on training patients only. $\z<0$ means the patient's cells are more sensitive to drug $d$ than a typical AML sample. A patient counts as \emph{truly sensitive} when $\z<-0.84$, the 20th percentile of a standard normal; the observed share is 17.8\% in Waves1+2. This cutoff is our choice; threshold-free metrics are reported alongside.
+We write this drug-standardized AUC as $\z$ throughout, with $\mu_d,\sigma_d$ estimated on training patients only. $\z<0$ means the patient's cells are more sensitive to drug $d$ than a typical AML sample. The cutoff was chosen at the 20th percentile of a standard normal distribution, so a patient is considered truly sensitive to a drug when $\z<-0.84$; the observed share is 17.8\% in Waves1+2. This cutoff is our choice, so Spearman correlation and NDCG@10, which do not depend on it, are reported alongside.
 
 \subsection{Features}
-All features are interpretable and come from \citet{bottomly2022}: six van Galen cell-type scores \citep{vangalen2019} (HSC-, progenitor-, GMP-, promonocyte-, monocyte- and cDC-like), nine WGCNA module eigengenes, PEAR1 expression and the LSC17 score; 20 mutations and 4 fusions carried by at least 10 training patients; and age, de novo status and specimen tissue (44 features). Cell-type scores and module eigengenes are first principal components of fixed gene sets, fitted on the 372 Waves1+2 RNA-seq specimens. They reproduce the published scores exactly ($r=1.0$), and contain no Waves3+4 patient. Patients without DNA sequencing (17 training, 2 test) receive zeros for mutations plus a missing-DNA indicator.
+All features are interpretable and come from \citet{bottomly2022}: six van Galen cell-type scores \citep{vangalen2019} (HSC-, progenitor-, GMP-, promonocyte-, monocyte- and cDC-like), nine WGCNA module eigengenes, PEAR1 expression and the LSC17 score; 20 mutations and 4 fusions, each kept if at least 10 training patients carry it; and age, de novo status and specimen tissue (44 features). Cell-type scores and module eigengenes are first principal components of fixed gene sets, fitted on the 372 Waves1+2 RNA-seq specimens.
+
+The feature sets were compared by cross-validation within Waves1+2. The PCA was fitted on all Waves1+2 specimens, including those held out within cross-validation folds; this uses no drug or outcome labels and does not affect the Waves3+4 holdout. They reproduce the published scores exactly ($r=1.0$), and contain no Waves3+4 patient. Patients without DNA sequencing (17 training, 2 test) receive zeros for mutations plus a missing-DNA indicator.
+
+\subsection{Baselines}
+Random and B0 set the reference points. The random baseline orders the drugs at random for each patient, so its expected precision@5 equals the patient's prevalence of sensitive drugs, which defines the chance level. B0 is a population baseline: it gives every patient the same list, ordered by mean training AUC, so it captures general potency but no patient-specific information.
+
+B1 is the genomic-rule baseline. Drugs whose curated targets match one of the patient's alterations come first (for example, FLT3 inhibitors for FLT3/FLT3-ITD, and MEK inhibitors for NRAS, KRAS or PTPN11), followed by B0's order for the remaining drugs. The targets come from the paper's curated drug--gene table. B1 reflects the clinician-style use of genetic results, so it is the bar the learned models must beat.
 
 \subsection{Models}
-Every model outputs a score per (patient, drug); lower means recommend first.
-\begin{enumerate}
- \item \textbf{Random} and \textbf{B0 population}: a random order, and one list for everyone ordered by mean training AUC.
- \item \textbf{B1 genomic rules}: drugs whose curated targets match one of the patient's alterations come first (FLT3/FLT3-ITD $\rightarrow$ FLT3 inhibitors, NRAS/KRAS/PTPN11 $\rightarrow$ MEK inhibitors, KIT, JAK2, BCR-ABL1, IDH1/2), then B0's order. Targets come from the paper's curated drug--gene table. This is the clinician-style bar to beat.
- \item \textbf{M1 per-drug ridge}: one ridge regression per drug predicting $\z$ from standardized features, with the penalty chosen by efficient leave-one-out over 21 values \citep{pedregosa2011sklearn}.
- \item \textbf{M2 pooled gradient boosting}: one XGBoost model \citep{chen2016xgboost} over all (patient, drug) pairs, with drug identity, kinase-family membership and a ``drug targets one of this patient's mutated genes'' indicator, so that information is shared across drugs (depth 4, 400 trees, learning rate 0.05, fixed in advance).
-\end{enumerate}
-Ablations fit M1 on mutations + clinical only, adding cell-type scores, expression only, and all features. Hybrids place B1's rule matches on top of M1 or M2. A shuffled-label M1, which permutes each drug's targets across patients, measures the pipeline's chance level.
+Each model assigns a score to every patient–drug pair, and drugs are recommended in order of increasing score, since a lower score predicts stronger sensitivity. We compare the baselines with two learned models, M1 and M2.
+
+\textbf{M1 per-drug ridge} fits one ridge regression per drug, predicting that drug's $\z$ from standardized patient features. Ridge regression is a linear model whose penalty shrinks coefficients toward zero, which keeps predictions stable when there are many correlated features and only a few hundred patients. The penalty is chosen by efficient leave-one-out cross-validation over 21 values \citep{pedregosa2011sklearn}. We fit one model per drug because drugs respond to different biology: higher monocytic maturation predicts resistance to venetoclax but sensitivity to MEK inhibitors, so a single shared coefficient would average opposite effects. Each drug's coefficients stay readable, which lets us check whether a learned link matches known biology. The main model uses all features: the cell-type scores, module eigengenes, PEAR1 and LSC17, together with mutations and clinical variables.
+
+\textbf{M2 pooled gradient boosting} fits one XGBoost model \citep{chen2016xgboost} over all patient--drug pairs. It takes drug identity, kinase-family membership and an indicator for whether the drug targets one of the patient's mutated genes, so information can be shared across drugs with similar mechanisms. Gradient boosting can capture nonlinear effects and interactions that a linear model misses, which makes M2 a useful contrast to M1: if sharing across drugs and nonlinear modelling help, M2 should win, but with about 270 training patients it has less data per effect. Its settings (depth 4, 400 trees, learning rate 0.05) were fixed in advance rather than tuned on the holdout.
 
 \subsection{Evaluation}
-Metrics are computed per patient over that patient's tested drugs and then averaged, with 95\% patient-bootstrap intervals (1{,}000 resamples). \textbf{Precision@5} is the fraction of the top five recommended drugs that are truly sensitive. Its chance value is the patient's \emph{prevalence} of sensitive drugs, and \textbf{lift@5} is precision@5 minus prevalence. We also report NDCG@10 with gain $\max(0,-\z)$ and the Spearman correlation between score and $\z$. Model comparisons use paired bootstrap differences on the same patients. All choices were made by 5-fold cross-validation within Waves1+2, refitting the $\z$-scaling and every model inside each fold. The model list was then frozen and Waves3+4 scored once.
+Metrics are computed per patient over that patient's tested drugs and then averaged, with 95\% patient-bootstrap intervals (1{,}000 resamples). Model comparisons use paired bootstrap differences on the same patients. All choices were made by 5-fold cross-validation within Waves1+2, refitting the $\z$-scaling and every model inside each fold. We report precision@5, NCDG@10, and Spearman correlation.
+
+Precision@5 is the fraction of the top five recommended drugs that are truly sensitive. Its chance value is the patient's prevalence of sensitive drugs, and lift@5 is precision@5 minus prevalence. Precision@5 is the primary metric, because a clinician is most likely to act on a short list of five drugs.
+
+NDCG@10 and Spearman correlation both measure how well the predicted ranking agrees with the true one, so they are closely related, but they weight the ranking differently. NDCG@10 is the normalized discounted cumulative gain over the top ten drugs. Each drug contributes its gain $\max(0,-\z)$, discounted by the logarithm of its rank, so a sensitive drug placed first counts for more than the same drug placed tenth. The sum is divided by the best possible value for that patient, which is the gain from sorting the drugs by their true $\z$.
+
+Spearman correlation is the rank correlation between the model's order and the observed order across all of a patient's tested drugs, running from $-1$ (reversed) through $0$ (unrelated) to $1$ (identical). Where NDCG@10 concentrates on the top of the list and on the strength of each response, which is closer to the clinical question, Spearman summarizes the whole list, including drugs a clinician would not consider. We report both: NDCG@10 checks the short list, and Spearman checks whether the rest of the ordering is sensible too.
+
 
 \subsection{Clinical validation}
-\textbf{Induction response.} Patients sampled at initial diagnosis who received standard-chemotherapy induction with a recorded outcome form the clinical cohort: 239 patients, 74 refractory and 165 with complete response (CR or CRi). A stricter subset with 7+3 or HiDAC recorded has 175 patients (45 refractory). The predicted cytarabine $\z$ is out-of-sample for every patient: out-of-fold predictions for Waves1+2 and holdout predictions for Waves3+4. Outcome labels are never used in training. We fit logistic regressions of refractory status on ELN2017 risk group and age, adding the observed or predicted cytarabine $\z$, and report odds ratios per SD, likelihood-ratio tests and 20-times-repeated 5-fold cross-validated AUROC.
+\subsubsection{Induction response}
+The clinical cohort comprises 239 patients sampled at diagnosis who received standard-chemotherapy induction with a recorded outcome: 74 refractory and 165 in complete response (CR, marrow blasts below 5\% with recovered blood counts) or CRi (the same marrow response with incomplete count recovery), following ELN criteria. A stricter subset with recorded 7+3 or HiDAC induction comprises 175 patients, 45 of whom were refractory. Each patient's predicted cytarabine drug-standardized AUC ($\z$) is out-of-sample: Waves1+2 predictions are out-of-fold, made by models trained on the remaining folds, and Waves3+4 predictions come from the model fitted on Waves1+2 alone. Clinical outcomes were never used in training. We fit logistic regressions of refractory status on ELN2017 risk group and age, adding either the observed or the predicted cytarabine $\z$. We report odds ratios per SD, likelihood-ratio tests, and AUROC from 20 repetitions of 5-fold cross-validation.
 
-\textbf{Survival.} Cox models of overall survival on the predicted score, ELN2017 and age \citep{davidson2019lifelines}.
+\subsubsection{Survival}
+We model overall survival with Cox proportional hazards regression \citep{davidson2019lifelines}, with the predicted cytarabine drug-standardized AUC ($\z$) as the exposure and ELN2017 risk group and age as covariates. Hazard ratios are reported per SD of $\z$, where a value above 1 means higher predicted resistance goes with a higher death rate. Follow-up is shorter in Waves3+4 (about 3.4 years, against about 7 in Waves1+2; Appendix Figure~\ref{fig:km}), so we compare concordance indices rather than raw survival curves.
 
-\textbf{External survival validation.} TCGA-LAML \citep{tcga2013laml} was obtained from cBioPortal \citep{cerami2012cbioportal}: PanCanAtlas RNA-seq, exome mutation calls and overall survival, with age and karyotype from the 2013 study. The frozen M1 model, fit on Waves1+2 exactly as for the holdout, was applied without refitting. Because the expression platform differs, cell-type and module scores are computed by z-scoring TCGA genes within TCGA and projecting them on the PC1 loadings learned in Beat AML, and every expression feature is then rescaled to the Beat AML training distribution. FLT3-ITD is called from in-frame insertions at codons 560--620, and fusions from karyotype. ELN2017 is approximated from karyotype and mutations, without FLT3-ITD allelic ratio. Acute promyelocytic leukemia (APL), which is treated differently, is excluded from the primary analysis. The pre-specified test is the hazard ratio of the predicted score adjusted for approximate ELN and age.
+\subsubsection{External survival validation}
+We used TCGA-LAML \citep{tcga2013laml} as an external validation cohort, obtained from cBioPortal \citep{cerami2012cbioportal}. It provides PanCanAtlas RNA-seq, exome mutation calls and overall survival, with age and karyotype from the original 2013 study. The frozen M1 model, fitted on Waves1+2, was applied to TCGA without refitting. Because the expression platform differs, we z-scored TCGA genes within TCGA, projected them onto the PC1 loadings learned in Beat AML, and rescaled each expression feature to the Beat AML training distribution. 
+
+TCGA does not record some Beat AML inputs, so we estimated them, because the frozen model needs every input to score TCGA patients as it does Beat AML patients. FLT3-ITD, an internal duplication in the FLT3 kinase gene that switches the receptor on, was called from in-frame insertions at codons 560--620. Fusions, which join parts of two genes, were inferred from the karyotype, a microscopic map of chromosome changes. Because TCGA lacks the FLT3-ITD allelic ratio, ELN2017 was reconstructed from karyotype and mutations, which may misclassify some FLT3-ITD patients. Acute promyelocytic leukemia (APL) is treated differently and has a much better outcome, so it is excluded from the primary analysis. The pre-specified test is the hazard ratio of the predicted score adjusted for approximate ELN and age.
 
 \section{Experiments}
 \subsection{Software verification}
 Fifteen automated tests pass. They check that the computed cell-type scores reproduce the published values; that no Waves3+4 patient enters any fit during cross-validation; that training-patient features do not change when test expression is scrambled; that the $\z$-scaler and both learned models give identical held-out predictions when held-out AUCs are altered; and that the shuffled-label model is at chance. The full experiment regenerates from the raw data with \texttt{python -m src.run\_models [-{}-holdout]}, \texttt{python -m src.clinical} and \texttt{python -m src.tcga}.
+
+\subsection{Ablations}\label{sec:ablations}
+Each ablation changes one ingredient of M1, so that its contribution can be isolated. Table~\ref{tab:main} reports them alongside the main models.
+\begin{itemize}
+ \item \textbf{Mutations and clinical variables only.} This removes every expression feature and shows what a learned model can do with data a clinician already has. It beats the hand-written rules only slightly ($+0.037$ in CV and $+0.028$ on the holdout, whose confidence interval includes zero), so learning from genomics alone adds little.
+ \item \textbf{Adding the six cell-type scores.} This is the largest single improvement. Lift@5 rises from $0.108$ to $0.139$ in CV and from $0.156$ to $0.210$ on the holdout. It is the main evidence that maturation state carries drug-response information beyond genomics, and the predictive counterpart of the descriptive finding of \citet{bottomly2022}.
+ \item \textbf{Expression features only.} This removes the mutations and clinical variables. It performs about as well as genomics alone (precision@5 $0.293$ vs $0.289$ in CV, $0.428$ vs $0.409$ on the holdout). The two sources are complementary: the full model is the best in CV, so combining them helps more than either alone.
+ \item \textbf{Adding module eigengenes, PEAR1 and LSC17.} This changes little. Precision@5 rises from $0.320$ to $0.328$ in CV and falls from $0.464$ to $0.456$ on the holdout, so these features add nothing clear beyond the cell-type scores.
+ \item \textbf{Hybrid: B1 rules on top of M1.} This places B1's rule matches above M1 with all features. It scores lower than M1 alone in CV ($0.321$ vs $0.328$) and on the holdout ($0.440$ vs $0.456$). Once the model is fitted, the explicit rules add nothing, because M1 has already learned the same drug--lesion links.
+ \item \textbf{Shuffled labels.} This permutes each drug's values across patients, destroying patient-specific signal while keeping each drug's overall distribution. Precision@5 falls to $0.195$ in CV and $0.257$ on the holdout, close to the chance level of $0.234$ to $0.253$, and holdout Spearman is near zero ($0.012$). The pipeline therefore does not create signal from noise.
+\end{itemize}
 
 \subsection{Recommendation performance}
 Table~\ref{tab:main} and Figure~\ref{fig:main} give the results. In cross-validation, M1 with all features is the best model. 33\% of its top five recommendations are truly sensitive, against 25\% for B1 and 18\% by chance, a paired gain over B1 of $+0.076$ $[0.050, 0.104]$. On the holdout, scored once, the gain replicates almost exactly ($+0.074$ $[0.034, 0.117]$). M1 also ranks the whole list far better than B1 (Spearman $0.27$ vs $0.07$ on the holdout). B1 by design reorders only a handful of drugs.
@@ -110,9 +139,9 @@ Random & 0.179 & 0.225 & $-0.073$ & 0.234 & 0.233 & $-0.147$\\
 B0 population & 0.188 & 0.245 & $-0.064$ & 0.318 & 0.293 & $-0.064$\\
 B1 genomic rules & 0.252 & 0.295 & -- & 0.381 & 0.343 & --\\
 M1 ridge, mutations + clin. & 0.289 & 0.335 & $+0.037$ & 0.409 & 0.363 & $+0.028$\\
-M1 ridge, + cell types & 0.320 & 0.382 & $+0.068$ & \textbf{0.464} & 0.417 & $+0.082$\\
+\rowcolor{lightblue} M1 ridge, + cell types & 0.320 & 0.382 & $+0.068$ & \textbf{0.464} & 0.417 & $+0.082$\\
 M1 ridge, expression only & 0.293 & 0.364 & $+0.041$ & 0.428 & 0.389 & $+0.046$\\
-M1 ridge, all features & \textbf{0.328} & \textbf{0.393} & $+0.076$ & 0.456 & \textbf{0.422} & $+0.074$\\
+\rowcolor{lightblue} M1 ridge, all features & \textbf{0.328} & \textbf{0.393} & $+0.076$ & 0.456 & \textbf{0.422} & $+0.074$\\
 M2 XGBoost, mutations + clin. & 0.295 & 0.334 & $+0.043$ & 0.367 & 0.344 & $-0.015$\\
 M2 XGBoost, all features & 0.299 & 0.366 & $+0.047$ & 0.430 & 0.383 & $+0.049$\\
 B1 rules, then M1 all & 0.321 & 0.382 & $+0.069$ & 0.440 & 0.403 & $+0.058$\\
@@ -153,9 +182,6 @@ M1, shuffled labels & 0.195 & 0.230 & $-0.056$ & 0.257 & 0.235 & $-0.125$\\
 \label{fig:main}
 \end{figure}
 
-\subsection{Ablation: maturation state adds to genomics}
-With mutations and clinical variables alone, M1 already beats the hand-written rules slightly ($+0.037$ in CV; $+0.028$, CI including zero, on the holdout). Adding the six cell-type scores is the largest single improvement: lift@5 rises from $0.108$ to $0.139$ in CV and from $0.156$ to $0.210$ on the holdout. Modules, PEAR1 and LSC17 add little on top. Expression alone performs about as well as genomics alone, and the two are complementary. This is the predictive counterpart of the descriptive finding of \citet{bottomly2022}: maturation state carries drug-response information that genomics does not.
-
 \subsection{Who benefits}
 Table~\ref{tab:subgroups} splits patients by actionable lesion. For the 94 training and 50 holdout patients with no lesion that B1 has a rule for, B1 falls back to the population list and does no better than chance. M1 doubles precision@5 in CV ($0.245$ vs $0.123$, chance $0.153$) and improves it on the holdout ($0.416$ vs $0.300$, chance $0.260$). For FLT3-ITD patients, where the rules work well, M1 matches or slightly exceeds them. This group also contains the few patients without DNA sequencing.
 
@@ -178,35 +204,35 @@ No actionable lesion & 94 & 0.153 & 0.123 & \textbf{0.245} & 50 & 0.260 & 0.300 
 \end{table}
 
 \subsection{Which drugs are predictable}
-Across all 116 drugs, the median Spearman correlation between predicted and observed $\z$ across held-out patients is $0.31$ (CV) and $0.30$ (holdout) for M1 with all features, against $0.20$ for mutations alone and $0.00$ for shuffled labels. Table~\ref{tab:drugs} shows clinically relevant drugs. Venetoclax is the clearest case. Its predictability rises from $0.43$ to $0.77$ on the holdout once expression is added, reflecting the progenitor-versus-monocytic biology described by \citet{bottomly2022}. MEK inhibitors also gain substantially from expression. FLT3 inhibitors are largely predictable from mutations alone. Cytarabine is moderate ($0.31$ on the holdout), and azacytidine is barely predictable.
+Across all 116 drugs, the median Spearman correlation between predicted and observed $\z$ across held-out patients is $0.31$ (CV) and $0.30$ (holdout) for M1 with all features, against $0.20$ for mutations alone and $0.00$ for shuffled labels. Table~\ref{tab:drugs} shows clinically relevant drugs. Venetoclax is the clearest case. Its predictability rises from $0.43$ to $0.77$ on the holdout once expression is added, reflecting the progenitor-versus-monocytic biology described by \citet{bottomly2022}. Venetoclax inhibits BCL2, a protein that keeps leukemic cells alive by blocking apoptosis (programmed cell death). Progenitor-like cells depend on BCL2, so venetoclax can trigger their death. Monocytic cells rely more on MCL1 instead, and that dependence is one proposed reason they resist venetoclax \citep{pei2020}. Expression captures where a tumor sits on this progenitor-to-monocytic axis, which mutations do not, so the expression features are what make venetoclax predictable. MEK inhibitors also gain substantially from expression. FLT3 inhibitors are largely predictable from mutations alone. Cytarabine is moderate ($0.31$ on the holdout), and azacytidine is barely predictable.
 
 \begin{table}[ht]
 \small
 \centering
-\caption{Per-drug Spearman correlation between predicted and observed $\z$ across held-out patients, for M1 with mutations + clinical (``Mut.'') and with all features (``All''). $n$: holdout patients tested.}
+\caption{Per-drug Spearman correlation between predicted and observed $\z$ across held-out patients, for M1 with mutations + clinical (``Mut.'') and with all features (``All''). $n$: holdout patients tested. 95\% CI: patient-bootstrap interval for the holdout All value (1{,}000 resamples).}
 \label{tab:drugs}
-\begin{tabular}{@{}llccccc@{}}
+\begin{tabular}{@{}llcccccc@{}}
 \toprule
- & & \multicolumn{2}{c}{Cross-validation} & \multicolumn{3}{c}{Holdout}\\
-\cmidrule(lr){3-4}\cmidrule(l){5-7}
-Drug & Class & Mut. & All & $n$ & Mut. & All\\
+ & & \multicolumn{2}{c}{Cross-validation} & \multicolumn{4}{c}{Holdout}\\
+\cmidrule(lr){3-4}\cmidrule(l){5-8}
+Drug & Class & Mut. & All & $n$ & Mut. & All & 95\% CI\\
 \midrule
-Venetoclax & BCL2 & 0.20 & 0.65 & 138 & 0.43 & \textbf{0.77}\\
-Cytarabine & chemotherapy & 0.35 & 0.45 & 135 & 0.21 & 0.31\\
-Azacytidine & hypomethylating & 0.05 & 0.13 & 94 & 0.04 & 0.20\\
-Sorafenib & FLT3 (multi-kinase) & 0.49 & 0.57 & 146 & 0.46 & 0.52\\
-Quizartinib & FLT3 & 0.47 & 0.48 & 133 & 0.27 & 0.30\\
-Gilteritinib & FLT3 & 0.12 & 0.21 & 110 & 0.15 & 0.23\\
-Midostaurin & FLT3 (multi-kinase) & 0.50 & 0.50 & 107 & 0.37 & 0.44\\
-Crenolanib & FLT3 & 0.47 & 0.59 & 96 & 0.53 & 0.60\\
-Trametinib & MEK & 0.33 & 0.57 & 142 & 0.30 & 0.58\\
-Selumetinib & MEK & 0.22 & 0.54 & 114 & 0.47 & 0.64\\
+\rowcolor{lightblue} Venetoclax & BCL2 & 0.20 & 0.65 & 138 & 0.43 & \textbf{0.77} & [0.70, 0.83]\\
+Cytarabine & chemotherapy & 0.35 & 0.45 & 135 & 0.21 & 0.31 & [0.15, 0.44]\\
+Azacytidine & hypomethylating & 0.05 & 0.13 & 94 & 0.04 & 0.20 & [-0.01, 0.39]\\
+Sorafenib & FLT3 (multi-kinase) & 0.49 & 0.57 & 146 & 0.46 & 0.52 & [0.38, 0.65]\\
+Quizartinib & FLT3 & 0.47 & 0.48 & 133 & 0.27 & 0.30 & [0.13, 0.45]\\
+Gilteritinib & FLT3 & 0.12 & 0.21 & 110 & 0.15 & 0.23 & [0.05, 0.39]\\
+Midostaurin & FLT3 (multi-kinase) & 0.50 & 0.50 & 107 & 0.37 & 0.44 & [0.27, 0.60]\\
+Crenolanib & FLT3 & 0.47 & 0.59 & 96 & 0.53 & 0.60 & [0.45, 0.71]\\
+Trametinib & MEK & 0.33 & 0.57 & 142 & 0.30 & 0.58 & [0.45, 0.69]\\
+Selumetinib & MEK & 0.22 & 0.54 & 114 & 0.47 & 0.64 & [0.48, 0.75]\\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Clinical validation: induction response}
-Table~\ref{tab:clinical} gives the induction results. The \emph{observed} ex vivo cytarabine $\z$, available for the 145 clinical-cohort patients whose cells were tested with cytarabine, does not separate refractory from responding patients (univariate AUROC $0.49$; adjusted odds ratio $1.02$ per SD, $p=0.94$). The \emph{predicted} $\z$ does not improve on ELN2017 and age either (cross-validated AUROC $0.736$ vs $0.739$). In the 7+3/HiDAC subset it reaches borderline significance ($p=0.049$), but in the unexpected direction: patients predicted to be more cytarabine-resistant were \emph{less} often refractory. We treat this as noise. PEAR1 and LSC17 did not add to ELN and age here either.
+Table~\ref{tab:clinical} gives the induction results. The \emph{observed} ex vivo cytarabine drug-standardized AUC ($\z$), available for the 145 clinical-cohort patients whose cells were tested with cytarabine, does not separate refractory from responding patients (univariate AUROC $0.49$; adjusted odds ratio $1.02$ per SD, $p=0.94$). The \emph{predicted} $\z$ does not improve on ELN2017 and age either (cross-validated AUROC $0.736$ vs $0.739$). In the 7+3/HiDAC subset it reaches borderline significance ($p=0.049$), but in the unexpected direction: patients predicted to be more cytarabine-resistant were \emph{less} often refractory. We treat this as noise. PEAR1 and LSC17 did not add to ELN and age here either.
 
 \begin{table}[ht]
 \small
@@ -255,15 +281,20 @@ TCGA-LAML, all & ELN + age & 151 (94) & 0.88 [0.70, 1.11] & 0.27 & 0.663\\
 
 \section{Analysis}
 \label{sec:analysis}
-\textbf{Why the learned model beats the rules.} The rules encode one lesion--drug link each and leave the rest of the list in potency order, which for the drug-standardized target is no better than chance. The ridge model learns graded effects for every drug, including links no rule covers, and above all the dependence on maturation state. The ablation shows that most of the gain beyond genomics comes from six cell-type scores. These are cheap to compute from routine RNA-seq and have a direct biological reading.
+\subsection{Why the learned model beats the rules}
+The rules encode one lesion--drug link each and leave the rest of the list in potency order, which for the drug-standardized target is no better than chance. The ridge model learns graded effects for every drug, including links no rule covers, and above all the dependence on maturation state. The ablation shows that most of the gain beyond genomics comes from six cell-type scores. These are cheap to compute from routine RNA-seq and have a direct biological reading.
 
-\textbf{Pooling across drugs did not help.} M2 was designed to share information across drugs, which should help with only about 270 training patients. It was nonetheless worse than per-drug ridge, and with mutations only it failed to beat the rules on the holdout. With this many patients, a regularized linear model per drug was the better choice. Adding the rules on top of M1 did not help either, because M1 already learns the FLT3 links.
+\subsection{Pooling across drugs did not help}
+M2 was designed to share information across drugs, which should help with only about 270 training patients. It was nonetheless worse than per-drug ridge, and with mutations only it failed to beat the rules on the holdout. With this many patients, a regularized linear model per drug was the better choice. Adding the rules on top of M1 did not help either, because M1 already learns the FLT3 links.
 
-\textbf{The holdout cohort is more drug-sensitive.} 25.3\% of tested Waves3+4 pairs fall below the sensitivity cutoff, against 17.8\% in Waves1+2, using Waves1+2 scaling. Every model's holdout precision is higher as a result, and even the population list (B0) gains some lift on the holdout ($+0.064$). Likely causes are drift in the assay or sample processing between waves. Comparisons between models within the holdout, which are paired on the same patients, are unaffected, and they agree with cross-validation.
+\subsection{The holdout cohort is more drug-sensitive}
+25.3\% of tested Waves3+4 pairs fall below the sensitivity cutoff, against 17.8\% in Waves1+2, using Waves1+2 scaling (Appendix Figure~\ref{fig:potency}). Every model's holdout precision is higher as a result, and even the population list (B0) gains some lift on the holdout ($+0.064$). Likely causes are drift in the assay or sample processing between waves. Comparisons between models within the holdout, which are paired on the same patients, are unaffected, and they agree with cross-validation.
 
-\textbf{Why the induction result is negative.} The predicted cytarabine score cannot be expected to anticipate induction response if the observed ex vivo result does not, and in this cohort it does not. Plausible reasons are that induction combines cytarabine with an anthracycline, which is not on the panel; that a short culture misses the marrow microenvironment and drug pharmacokinetics; and that induction failure partly reflects patient fitness. This is a finding about the ex vivo readout for cytarabine, not about the model.
+\subsection{Why the induction result is negative}
+The predicted cytarabine score cannot be expected to anticipate induction response if the observed ex vivo result does not, and in this cohort it does not. Plausible reasons are that induction combines cytarabine with an anthracycline, which is not on the panel; that a short culture misses the marrow microenvironment and drug pharmacokinetics; and that induction failure partly reflects patient fitness. This is a finding about the ex vivo readout for cytarabine, not about the model.
 
-\textbf{Why the survival result did not replicate.} Three explanations are possible and cannot be separated here. First, the Beat AML association may be a chance finding among the several clinical tests we ran. Second, TCGA's exome calls under-detect two of the cytarabine model's strongest inputs: FLT3-ITD, its largest weight, is called in 16\% of TCGA patients against 24\% in Beat AML, and SRSF2 in 2\% against 12\%. Third, the cohorts differ in era (TCGA patients were diagnosed 2001--2010), treatment and composition. The feature mapping itself appears sound. The mapped monocyte-like score separates FAB M4/M5 cases strongly (mean $3.6$ vs $-1.6$), predicted scores have a similar spread in both cohorts (SD $0.31$ vs $0.40$), and approximate ELN and age give a sensible C-index. A first TCGA run contained a bug: genes with missing values in the TCGA expression file made seven expression features undefined, and these were silently imputed. It was found by checking feature distributions and fixed before the results were interpreted, and the conclusion did not change.
+\subsection{Why the survival result did not replicate}
+Three explanations are possible and cannot be separated here. First, the Beat AML association may be a chance finding among the several clinical tests we ran. Second, TCGA's exome calls under-detect two of the cytarabine model's strongest inputs: FLT3-ITD, its largest weight, is called in 16\% of TCGA patients against 24\% in Beat AML, and SRSF2 in 2\% against 12\%. Third, the cohorts differ in era (TCGA patients were diagnosed 2001--2010), treatment and composition. The feature mapping itself appears sound. The mapped monocyte-like score separates FAB M4/M5 cases strongly (mean $3.6$ vs $-1.6$), predicted scores have a similar spread in both cohorts (SD $0.31$ vs $0.40$), and approximate ELN and age give a sensible C-index. A first TCGA run contained a bug: genes with missing values in the TCGA expression file made seven expression features undefined, and these were silently imputed. It was found by checking feature distributions and fixed before the results were interpreted, and the conclusion did not change.
 
 \section{Limitations}
 \begin{itemize}[leftmargin=1.5em,itemsep=2pt]
@@ -276,7 +307,7 @@ TCGA-LAML, all & ELN + age & 151 (94) & 0.88 [0.70, 1.11] & 0.27 & 0.663\\
 \end{itemize}
 
 \section{Conclusion and future work}
-Molecular profiles at diagnosis, and in particular the tumor's maturation state, recover a substantial part of the patient-specific information in the Beat AML ex vivo drug screen. A simple per-drug ridge model beats genotype-matched rules on patients accrued later, with the largest benefit for patients who have no actionable mutation. Venetoclax response is especially well predicted. We found no evidence that ex vivo cytarabine sensitivity, measured or predicted, anticipates response to induction, and an apparent survival association did not replicate externally. The most useful next steps are external validation of the ranking in a cohort with both screen and RNA-seq data, and a venetoclax-focused analysis comparing predicted sensitivity with outcomes of venetoclax-treated patients.
+Molecular profiles at diagnosis, and in particular the tumor's maturation state, recover a substantial part of the patient-specific information in the Beat AML ex vivo drug screen. A simple per-drug ridge model beats genotype-matched rules on patients accrued later, with the largest benefit for patients who have no actionable lesion. Venetoclax response is especially well predicted. We found no evidence that ex vivo cytarabine sensitivity, measured or predicted, anticipates response to induction, and an apparent survival association did not replicate externally. The most useful next steps are external validation of the ranking in a cohort with both screen and RNA-seq data, and a venetoclax-focused analysis comparing predicted sensitivity with outcomes of venetoclax-treated patients.
 
 \FloatBarrier
 \renewcommand{\bibsection}{\section*{References}}
@@ -285,4 +316,73 @@ Molecular profiles at diagnosis, and in particular the tumor's maturation state,
 \bibliographystyle{unsrtnat}
 \bibliography{references}
 \endgroup
+
+\appendix
+\section{Exploratory data analysis of Waves1+2 and Waves3+4}\label{app:explore}
+We explored both waves before modelling, using the same training (Waves1+2) and test (Waves3+4) split as the main analysis. Each figure is summarized below with what it shows and why it matters for the design.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures/exploration/stage_tissue.png}
+\caption{Specimen tissue (left) and disease stage at sampling (right) by split. The test split has more initial-diagnosis samples (82\% vs 75\%) and fewer residual-disease samples (7\% vs 21\%). Because stage differs, de novo status, a model feature, only partly captures it.}
+\label{fig:stage}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.75\linewidth]{figures/exploration/eln.png}
+\caption{ELN2017 risk group by split. About one patient in four has no risk call, and the test split has more adverse (32\% vs 27\%) and intermediate (21\% vs 15\%) patients. ELN2017 therefore needs a plan for missing values before it is used as a covariate.}
+\label{fig:eln}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.75\linewidth]{figures/exploration/survival_km.png}
+\caption{Overall survival by split (Kaplan--Meier). Median survival is about 1.5 years in Waves1+2 and 1.0 year in Waves3+4, and follow-up ends near 7 and 3.4 years. Ranking metrics such as the concordance index are more appropriate than raw curves for this comparison.}
+\label{fig:km}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.75\linewidth]{figures/exploration/drug_counts.png}
+\caption{Patients tested per drug, by split. The exploration used stricter thresholds (at least 150 training and 50 test patients, giving 91 drugs). The main analysis keeps 116 drugs with at least 60 training patients. Venetoclax, cytarabine and lenvatinib sit just below the exploration threshold, so the wider cutoff is what keeps them in.}
+\label{fig:drugcounts}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures/exploration/missingness.png}
+\caption{Which drugs were measured for which patients (black = measured). Missingness follows patients and drugs rather than chance, so each drug is modelled on the patients who were tested with it.}
+\label{fig:missing}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.75\linewidth]{figures/exploration/drug_drug_corr.png}
+\caption{Spearman correlation of AUC between drugs in training patients, ordered by mean AUC. The median pairwise correlation is 0.29, so a patient resistant to one drug is often resistant to others. This shared factor motivates the drug-standardized target.}
+\label{fig:drugcorr}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures/exploration/celltype_scores.png}
+\caption{The six van Galen cell-type scores by split. The distributions overlap well, so a projection fitted on Waves1+2 transfers to Waves3+4.}
+\label{fig:celltype}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.75\linewidth]{figures/exploration/venetoclax_monocyte.png}
+\caption{Venetoclax AUC against the monocyte-like score in training patients (Spearman 0.70, 142 patients). Higher monocytic scores go with higher AUC, which means more resistance. This matches the biology in the main text and confirms the AUC direction and the sample joins.}
+\label{fig:venmono}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.75\linewidth]{figures/exploration/potency_shift.png}
+\caption{Mean AUC per drug in Waves1+2 (x) and Waves3+4 (y). Most drugs lie near the red line, but more sit below it, so the test wave is somewhat more drug-sensitive. This shift is consistent with the higher holdout precision reported in the Results.}
+\label{fig:potency}
+\end{figure}
+
+Two further checks are not shown. Per-patient expression medians are about 3.0 in both waves, so there is no global offset. Mutation frequencies match for most genes, but CEBPA is about 10\% in Waves1+2 and 4\% in Waves3+4, and NF1 is under 1\% against about 7\%. The most variable genes are dominated by sex-linked genes such as XIST and RPS4Y1. The features used here are fixed gene sets rather than learned factors, which limits this risk, but we did not check whether sex-linked genes appear in the WGCNA modules.
 \end{document}

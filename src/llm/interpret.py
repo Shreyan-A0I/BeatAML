@@ -108,7 +108,11 @@ Rules:
 4. These are ex vivo and retrospective associations. Do not use causal wording like "PEAR1 drives" or "causes", and do not give treatment advice.
 5. "strength": use "strong" ONLY for a single pre-stated drug that replicated with two-sided p < 0.01. Correlations, sign tests and counts across many drugs are at most "moderate". Borderline, one-sided-only or not-replicated results are "weak".
 6. Do not contradict the evidence. For example, if a result survives an adjustment, do not propose that the adjusted factor explains it.
-7. Reply with ONE JSON object and nothing else."""
+7. Stemness (LSC17) is ALREADY adjusted for, and the venetoclax effect stayed. So a hypothesis must not say that general stemness alone explains a drug result; it must propose something beyond it (for example inflammatory signaling or a specific pathway).
+8. The trametinib effect survives adjustment for RAS-pathway MUTATIONS, so do not explain it by RAS mutations. A hypothesis about signaling dependence (for example MAPK/ERK) is allowed if marked speculative.
+9. For a drug that did not replicate, include the possibility that the original Beat AML result was a chance finding (122 drugs were tested), alongside any other reason.
+10. When you give a percentage or count, say what it is a share of (for example "15 of the 20 drugs with q < 0.10", not "75% of drugs").
+11. Reply with ONE JSON object and nothing else."""
 
 SCHEMA = """{
   "plain_summary": "under 120 words, simple language, cite ids like [E3] right after every number",

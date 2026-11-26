@@ -193,6 +193,7 @@ def ask_json(host, model, system, user, retries=1) -> dict:
 
 
 # ----------------------------------------------------------------------------- checker
+COMMON_THRESHOLDS = {"0.05", "0.01", "0.001", "0.10", "0.1"}
 NUM = re.compile(r"(?<![A-Za-z0-9.])[-+]?\d+(?:\.\d+)?")
 ID = re.compile(r"\bE\d+\b")
 
@@ -217,6 +218,8 @@ def check_text(text: str, by_id: dict[str, list[float]], fallback: tuple[str, ..
     for tok in NUM.findall(ID.sub(" ", text)):
         if "." not in tok and abs(float(tok)) <= 5:   # small counts like "two cohorts" are not checked
             continue
+        if tok in COMMON_THRESHOLDS:                  # "p < 0.05" is a convention, not a data value
+            continue
         if not ids:
             out["uncited_numbers"].append(tok)
         elif not matches(tok, pool):
@@ -231,7 +234,7 @@ def check_report(report: dict, evidence) -> dict:
     def visit(path, obj, fallback=()):
         if isinstance(obj, str):
             p = check_text(obj, by_id, fallback)
-            stats["checked"] += len([t for t in NUM.findall(ID.sub(" ", obj)) if "." in t or abs(float(t)) > 5])
+            stats["checked"] += len([t for t in NUM.findall(ID.sub(" ", obj)) if ("." in t or abs(float(t)) > 5) and t not in COMMON_THRESHOLDS])
             stats["unsupported"] += len(p["unsupported_numbers"])
             stats["uncited"] += len(p["uncited_numbers"])
             if any(p.values()):

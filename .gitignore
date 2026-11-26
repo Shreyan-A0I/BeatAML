@@ -45,3 +45,7 @@ Thumbs.db
 
 # Literature: papers/proposal PDFs and notes (copyrighted, kept local)
 literature/
+
+# papers (kept locally in literature/)
+bottomly_2022.pdf
+vangalen_2019.pdf

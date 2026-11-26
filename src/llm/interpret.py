@@ -1,5 +1,5 @@
-"""Ask a local LLM (Ollama, e.g. Gemma) to interpret our FIMM replication results and propose
-validation steps, then CHECK what it says against the real numbers.
+"""Ask a local LLM (Ollama, e.g. Gemma) to analyze our FIMM replication results and propose a
+hypothesis for each headline drug, then CHECK what it says against the real numbers.
 
     python -m src.validation.fimm_pear1          # make the results first
     python -m src.llm.interpret                  # talk to Ollama
@@ -105,27 +105,20 @@ Rules:
 1. Use ONLY the numbered evidence for facts and numbers. Cite evidence ids like [E3].
 2. Never invent numbers, p-values, drug names or studies. If something is not in the evidence, say it is unknown.
 3. General biology ideas are allowed ONLY inside "hypotheses", and each must be marked speculative.
-4. These are ex vivo and retrospective results. Do not give treatment advice.
-5. "strength": use "strong" ONLY for a single pre-stated drug that replicated with two-sided p < 0.01. Correlations, sign tests and counts across many drugs are at most "moderate". Borderline, one-sided-only or not-replicated results are "weak". Do not call the Spearman correlation strong.
-6. Caveats must restate the "Limitation" items or the multiple-testing evidence. Do not make new claims about how the analysis was done.
-7. Validation steps must be NEW. Everything listed under "Team result" is already done (PEAR1 survival in Beat AML and TCGA, the Beat AML drug screen, pathway enrichment, trametinib RAS adjustment). Do not propose repeating it; propose how to test or extend it instead.
-8. Mention the follow-up leads (drugs with FIMM p < 0.05 other than venetoclax) as leads only, and say that most same-direction drugs are not individually significant in FIMM.
-9. Reply with ONE JSON object and nothing else."""
+4. These are ex vivo and retrospective associations. Do not use causal wording like "PEAR1 drives" or "causes", and do not give treatment advice.
+5. "strength": use "strong" ONLY for a single pre-stated drug that replicated with two-sided p < 0.01. Correlations, sign tests and counts across many drugs are at most "moderate". Borderline, one-sided-only or not-replicated results are "weak".
+6. Do not contradict the evidence. For example, if a result survives an adjustment, do not propose that the adjusted factor explains it.
+7. Reply with ONE JSON object and nothing else."""
 
 SCHEMA = """{
   "plain_summary": "under 120 words, simple language, cite ids like [E3] right after every number",
   "findings": [{"statement": "...", "evidence": ["E1"], "strength": "strong|moderate|weak"}],
-  "hypotheses": [{"statement": "...", "evidence": ["E1"], "speculative": true}],
-  "validation_steps": [{"step": "...", "tests": "which hypothesis or finding", "data_needed": "...", "difficulty": "easy|medium|hard"}],
-  "caveats": ["..."]
+  "hypotheses": [{"drug": "Venetoclax|Trametinib|Panobinostat", "statement": "why high-PEAR1 cells react this way (or why the result did not replicate)", "evidence": ["E1"], "speculative": true}]
 }"""
 
-TASK = """Task:
-A) Summarise what the FIMM check shows about the PEAR1 drug pattern: what replicated, what did not, how strong it is.
-B) Give 3 to 6 findings, each citing evidence ids.
-C) Give 2 to 4 mechanistic hypotheses that could explain the pattern (including why venetoclax and trametinib might behave as they do).
-D) Propose 4 to 6 validation steps, ranked from best value for effort. Prefer steps doable with: Beat AML, FIMM, TCGA-LAML, other public AML data, or a basic lab experiment.
-E) List the main caveats.
+TASK = """Task (do only these two things):
+1) Analyze the results: what replicated in FIMM, what did not, and how strong each result is. Give 3 to 6 findings, each citing evidence ids.
+2) Propose a hypothesis for each of the three pre-stated drugs (Venetoclax, Trametinib, Panobinostat) explaining why PEAR1-high cells react the way they do. For a drug that did not replicate, explain what might account for that. Give exactly one hypothesis per drug and cite the evidence it rests on.
 Return JSON in exactly this shape:
 """
 
@@ -249,6 +242,10 @@ def check_report(report: dict, evidence) -> dict:
                 visit(f"{path}[{i}]", v, fallback)
 
     visit("", report)
+    covered = " ".join(f"{h.get('drug', '')} {h.get('statement', '')}".lower() for h in report.get("hypotheses", []))
+    missing = [d for d in ("Venetoclax", "Trametinib", "Panobinostat") if d.lower() not in covered]
+    if missing:
+        flags["hypotheses"] = {"no_hypothesis_for_drug": missing}
     for i, f in enumerate(report.get("findings", [])):
         if not f.get("evidence"):
             flags.setdefault(f"findings[{i}]", {})["no_evidence_cited"] = True
@@ -285,11 +282,14 @@ def render_md(report, critic, check, evidence, model) -> str:
         L += ["", f"## {title}"]
         for i, f in enumerate(report.get(key, [])):
             tag = f" [{f.get('strength')}{', ' + f['strength_note'] if f.get('strength_note') else ''}]" if f.get("strength") else ""
-            L.append(f"- {f.get('statement', '')}{tag} — evidence: {', '.join(f.get('evidence', [])) or 'none'}{mark(f'{key}[{i}]')}")
-    L += ["", "## Suggested validation steps"]
+            who = f"**{f['drug']}**: " if f.get("drug") else ""
+            L.append(f"- {who}{f.get('statement', '')}{tag} — evidence: {', '.join(f.get('evidence', [])) or 'none'}{mark(f'{key}[{i}]')}")
+    if report.get("validation_steps"):
+        L += ["", "## Suggested validation steps"]
     for i, v in enumerate(report.get("validation_steps", []), 1):
         L.append(f"{i}. **{v.get('step', '')}** (tests: {v.get('tests', '?')}; data: {v.get('data_needed', '?')}; {v.get('difficulty', '?')}){mark(f'validation_steps[{i - 1}]')}")
-    L += ["", "## Caveats"] + [f"- {c}{mark(f'caveats[{i}]')}" for i, c in enumerate(report.get("caveats", []))]
+    if report.get("caveats"):
+        L += ["", "## Caveats"] + [f"- {c}{mark(f'caveats[{i}]')}" for i, c in enumerate(report.get("caveats", []))]
     if critic:
         L += ["", "## Skeptical reviewer (second model pass)"]
         for o in critic.get("objections", []):

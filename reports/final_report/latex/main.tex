@@ -33,6 +33,8 @@
 \maketitle
 \begin{abstract}
 Ex vivo drug screens show which drugs kill a patient's leukemia cells, but they need fresh cells, take weeks, and run at few centers, whereas sequencing is routine. We present a recommender with potential to serve as a proxy for these screens. Trained on Waves 1+2 of Beat AML \citep{bottomly2022,beataml2} and tested on Waves 3+4, a per-drug ridge model uses mutations, fusions, clinical variables, maturation scores, co-expression modules, PEAR1 and LSC17. Its top five drugs are truly sensitive for 46\% of patients (precision@5), against 38\% for genotype rules and 25\% by chance; full-ranking Spearman is 0.27 versus 0.07. The gain is largest in patients without an actionable lesion, where genotype rules do no better than chance. Prediction is highest for venetoclax (Spearman 0.77), consistent with progenitor-versus-monocytic biology: monocytic leukemias depend on MCL1 rather than BCL2 and resist venetoclax \citep{bottomly2022,pei2020}. MEK inhibitors are among the next most accurate. Clinical validation is limited and rests mostly on cytarabine, the induction backbone. Neither observed nor predicted ex vivo cytarabine sensitivity was associated with induction response (odds ratio $1.02$ per SD, 95\% CI $[0.67, 1.54]$, $p=0.94$, $n=145$). After adjustment for ELN2017 risk and age, the predicted score was associated with overall survival in Beat AML (HR $1.33$ per SD, 95\% CI $[1.09, 1.62]$, $p=0.005$), but not in TCGA-LAML (HR $0.94$, 95\% CI $[0.74, 1.19]$). TCGA used a different expression platform, an approximate ELN2017 risk group and fewer patients, so its null may partly reflect measurement differences.
+
+\textbf{External validation and supporting analyses.} In FIMM \citep{malani2022}, an independent cohort with both an ex vivo screen and RNA-seq (109 patients, 69 shared drugs), the recommender frozen on Beat AML reached precision@5 $0.32$ against $0.25$ for genotype rules and $0.20$ by chance. Its gain over the rules ($+0.073$, 95\% CI $[0.024, 0.121]$) is the same as on the Beat AML holdout, and venetoclax was again the best-predicted drug (Spearman $0.56$). Screening ten anchor drugs on top of the molecular profile raised Beat AML holdout precision@5 from $0.46$ to $0.55$. Supporting analyses explain why maturation state dominates: three stable patient types differ on 93 of 144 drugs but not in survival beyond ELN and age, and mutation effects on drugs depend on maturation (a shrinkage screen replicates 4.4 of its top 100 interactions per split, against 0.7 at random). PEAR1 marks high-risk patients under 45 independently of stemness and of its own gene module (pooled Beat AML + TCGA HR $2.67$ per SD, $[1.50, 4.74]$), and PEAR1-high tumors resist venetoclax in both Beat AML and FIMM. Finally, routine clinical data predict induction failure better than ELN 2022 on the Beat AML holdout (AUROC $0.81$ vs $0.65$), but this did not transfer to FIMM.
 \end{abstract}
 
 \section{Introduction and motivation}
@@ -41,6 +43,8 @@ Acute myeloid leukemia (AML) is treated mostly by risk group. Fit patients recei
 Functional precision medicine tests drugs directly on a patient's cells. Small prospective studies report clinical benefit when treatment follows such screens \citep{kornauth2022,malani2022}. The Beat AML programme screened about 120 drugs on primary AML samples alongside exome and RNA sequencing \citep{tyner2018,bottomly2022}. \citet{bottomly2022} found that drug response depends on the tumor's maturation state, captured by six cell-type scores derived from single-cell data \citep{vangalen2019}: venetoclax works on progenitor-like tumors and fails on monocytic ones, and MEK inhibitors show the reverse. They also found that mutation effects on drug response depend on cell type. They used these results descriptively and did not build a predictor.
 
 \citet{bottomly2022} linked PEAR1 expression and maturation-state scores to overall survival in AML. Because maturation state also shapes drug response, we asked whether these cell-type scores, used as model features, could predict not only survival but also ex vivo drug sensitivity, and so built a drug recommender. For each patient, the task is to rank the drugs on the panel from most to least likely to be effective, using only data available at diagnosis: mutations, fusions, clinical variables and bulk RNA-seq. A good ranking places drugs the patient's cells were truly sensitive to near the top. We test three hypotheses. (H1) A learned model beats clinician-style genotype-matched rules at the top of the ranking, on patients not used for any modelling choice. (H2) Maturation features add to genomics. (H3) The predicted sensitivity to cytarabine, the backbone of induction, relates to induction response and survival.
+
+We then ask four questions that place the recommender in a clinical workflow. (H4) Does the ranking hold in an independent cohort with its own screen and RNA-seq? (H5) If a lab can run only a small screen, how much does it add to the molecular profile? (H6) Why does maturation state carry so much of the signal: are there natural patient types, do mutation effects depend on maturation, and what does the strongest single expression marker, PEAR1, add? (H7) Before the recommender is needed, can routine data flag the patients in whom standard induction will fail? The workflow is: predict who will not respond to 7+3 (H7), rank the alternatives for that patient (H1, H4, H5), and explain the ranking through maturation biology (H6).
 
 \section{Related work and background}
 Beat AML released drug response, exome and RNA-seq data for several hundred patients \citep{tyner2018} and extended them in a second release with clinical follow-up \citep{bottomly2022}. That study introduced the maturation-state view of drug response, the nine non-redundant co-expression modules computed with WGCNA \citep{langfelder2008wgcna}, and PEAR1 expression as a prognostic marker. The LSC17 stemness score is a 17-gene signature \citep{ng2016lsc17}. It was derived from gene expression in leukemia stem cell-enriched populations and summarizes how stem-like a tumor's expression profile is. It is computed as a weighted sum of the 17 genes from bulk RNA-seq, and higher scores predict poorer survival in AML independently of standard risk groups.
@@ -105,9 +109,28 @@ We used TCGA-LAML \citep{tcga2013laml} as an external validation cohort, obtaine
 
 TCGA does not record some Beat AML inputs, so we estimated them, because the frozen model needs every input to score TCGA patients as it does Beat AML patients. FLT3-ITD, an internal duplication in the FLT3 kinase gene that switches the receptor on, was called from in-frame insertions at codons 560--620. Fusions, which join parts of two genes, were inferred from the karyotype, a microscopic map of chromosome changes. Because TCGA lacks the FLT3-ITD allelic ratio, ELN2017 was reconstructed from karyotype and mutations, which may misclassify some FLT3-ITD patients. Acute promyelocytic leukemia (APL) is treated differently and has a much better outcome, so it is excluded from the primary analysis. The pre-specified test is the hazard ratio of the predicted score adjusted for approximate ELN and age.
 
+\subsection{External validation of the ranking: FIMM}\label{sec:fimm-methods}
+FIMM is the Helsinki functional precision medicine cohort of \citet{malani2022}: ex vivo drug sensitivity (sDSS, 515 drugs), RNA-seq (log2 CPM), targeted mutation calls and clinical data. We keep one sample per patient with both a screen and RNA-seq (the diagnosis sample when available), giving 109 patients (67 at diagnosis, 42 at relapse or refractory disease). Drugs are matched by name, and 69 of the 116 modelled drugs are on the FIMM panel.
+
+\textit{Features.} The frozen model needs every input to mean the same thing in both cohorts. Cell-type, module, PEAR1 and LSC17 scores are therefore recomputed with one definition: genes are z-scored within each cohort and projected onto PC1 loadings learned on Beat AML Waves1+2, restricted to genes measured in both. Mutations come from FIMM's binary calls and FLT3-ITD from its clinical file. Fusions come from the clinical fusion flags, tissue from the sample annotation, and age from the clinical summary. As a check, these shared features reproduce the Beat AML holdout (precision@5 $0.465$ against $0.456$ with the original features).
+
+\textit{Target.} FIMM reports sDSS, where higher means more sensitive, rather than AUC. We use $-$sDSS so that higher means more resistant, regress out the culture medium (conditioned vs mononuclear-cell medium) per drug, and convert each drug's values to rank-normal scores. As in Beat AML, $\z<-0.84$ then marks each drug's most sensitive fifth of patients. The model is fitted once on all 429 Beat AML patients and applied to FIMM without refitting. FIMM's labels are used only for scoring.
+
+\subsection{Partial screen}\label{sec:partial-methods}
+A small screen is cheaper and faster than the full panel. We ask how much a few screened \emph{anchor} drugs add to the molecular profile. Anchors are chosen on Waves1+2 alone, among drugs tested on at least 90\% of training patients, by pivoted QR decomposition of the drug-standardized AUC matrix. This picks the drugs that best span the panel. For every other drug, a ridge model takes the 44 features plus the patient's observed $\z$ on the anchors, with an untested anchor set to 0 (the drug mean). Every arm is scored on the same non-anchor drugs of the Waves3+4 patients.
+
+\subsection{Supporting analyses}\label{sec:support-methods}
+\textit{Patient types.} We cluster the 430 patients with multiple-kernel $k$-means \citep{huang2012mkkm}. It builds one similarity (RBF kernel) per data type: cell-type and module scores, mutations, and eight principal components of the soft-imputed drug-response matrix. It learns a weight for each view while clustering. $k$ is chosen by bootstrap stability (adjusted Rand index over 80\% subsamples). We test whether clusters add to ELN and age for survival (Cox likelihood ratio) and which drugs differ across clusters (Kruskal--Wallis, Benjamini--Hochberg).
+
+\textit{Mutation-by-maturation interactions.} \citet{bottomly2022} reported that mutation effects on drug response depend on cell type. For every drug, mutation (at least 5 carriers) and cell-type score, we fit $\mathrm{AUC}=b_0+b_1 g+b_2 s+\beta\,g s$, where $\beta$ measures how the mutation's effect changes along the maturation score. With few carriers, most estimates are noise, and the most extreme ones come from the smallest groups. We therefore shrink each estimate toward zero by empirical Bayes \citep{efron2010lsi}: $\hat\beta_{\text{EB}}=\hat\beta\,\tau^2/(\tau^2+\mathrm{se}^2)$, with $\tau^2$ estimated from the spread of all estimates. The patients are split in half ten times. One half ranks the interactions and the other half tests the top 100 (same sign and $q<0.10$). We compare four rankings: shrunk, raw, shrunk toward the drug-family mean, and random. Interactions that replicate are tested once in FIMM.
+
+\textit{PEAR1.} \citet{bottomly2022} reported PEAR1 as prognostic, but PEAR1 belongs to a stemness-related co-expression module (M3). We ask whether it adds to stemness and to the rest of its module, using frozen Beat AML weights in Beat AML and TCGA-LAML. We fit Cox models adjusted for age, cytogenetic risk, the HSC-like score and module M3 recomputed without PEAR1, by age band, pooled and stratified by cohort. For drug response, we fit per-drug models of $\z$ on PEAR1, the HSC-like score, age, a young indicator ($<45$) and PEAR1$\times$young, with empirical-Bayes shrinkage. The FIMM replication uses the same model with LSC17 for stemness.
+
+\textit{Induction failure.} The recommender helps patients who need an alternative to standard induction. We therefore predict induction failure (refractory vs CR/CRi) from data available at diagnosis. The cohort is 314 Beat AML patients sampled at diagnosis who received standard chemotherapy, 31\% of them refractory: 208 Waves1+2 patients for training and 106 Waves3+4 patients as a locked test. Features are ELN 2022 \citep{dohner2022eln}, approximated from the Beat AML mutation, fusion and karyotype calls; age, sex and de novo status; NPM1, FLT3-ITD, TP53, RUNX1 and ASXL1; and eight routine laboratory values. Logistic (L1, L2), random forest and gradient-boosting models were compared by nested cross-validation in Waves1+2. We also evaluate calibration, decision curves \citep{vickers2006dca} and split-conformal prediction sets \citep{angelopoulos2021conformal}. For FIMM, which records ELN 2017 only, the ELN 2017 version of the model is fitted on all Beat AML induction patients and scored on the 119 FIMM patients given intensive cytarabine-based induction. Laboratory values are converted to Beat AML units.
+
 \section{Experiments}
 \subsection{Software verification}
-Fifteen automated tests pass. They check that the computed cell-type scores reproduce the published values; that no Waves3+4 patient enters any fit during cross-validation; that training-patient features do not change when test expression is scrambled; that the $\z$-scaler and both learned models give identical held-out predictions when held-out AUCs are altered; and that the shuffled-label model is at chance. The full experiment regenerates from the raw data with \texttt{python -m src.run\_models [-{}-holdout]}, \texttt{python -m src.clinical} and \texttt{python -m src.tcga}.
+Fifteen automated tests pass. They check that the computed cell-type scores reproduce the published values; that no Waves3+4 patient enters any fit during cross-validation; that training-patient features do not change when test expression is scrambled; that the $\z$-scaler and both learned models give identical held-out predictions when held-out AUCs are altered; and that the shuffled-label model is at chance. The full experiment regenerates from the raw data with \texttt{python -m src.run\_models [-{}-holdout]}, \texttt{python -m src.clinical} and \texttt{python -m src.tcga}. The external and supporting analyses regenerate with \texttt{python -m analysis.fimm}, \texttt{analysis.partial\_screen}, \texttt{analysis.discovery}, \texttt{analysis.tcga}, \texttt{analysis.induction} and \texttt{src.validation.fimm\_pear1}.
 
 \subsection{Ablations}\label{sec:ablations}
 Each ablation changes one ingredient of M1, so that its contribution can be isolated. Table~\ref{tab:main} reports them alongside the main models.
@@ -231,6 +254,52 @@ Selumetinib & MEK & 0.22 & 0.54 & 114 & 0.47 & 0.64 & [0.48, 0.75]\\
 \end{tabular}
 \end{table}
 
+\subsection{External validation in FIMM}\label{sec:fimm}
+Table~\ref{tab:fimm} gives the external result. The recommender frozen on Beat AML places a truly sensitive drug in 32\% of its top-five slots for FIMM patients, against 25\% for the genomic rules and 20\% by chance. The paired gain over the rules is $+0.073$ $[0.024, 0.121]$, nearly identical to the Beat AML cross-validation ($+0.076$) and holdout ($+0.074$) gains. The expression features carry the external gain as they did internally: without them the model's gain shrinks to $+0.033$ and its interval includes zero. The subgroup pattern also holds. For the 46 FIMM patients with no actionable lesion, the rules fall to chance ($0.209$), while the model reaches $0.278$. Across the 69 shared drugs, the median per-drug Spearman correlation is $0.25$, and 83\% of drugs are positive. Venetoclax is again the best-predicted drug ($0.56$, 85 patients), followed by the MEK inhibitors selumetinib and trametinib ($0.43$ each), quizartinib ($0.38$), midostaurin ($0.35$) and sorafenib ($0.30$). Cytarabine is moderate ($0.21$), as in Beat AML.
+
+This test is harder than the Beat AML holdout. FIMM uses a different assay readout (sDSS), drug concentrations, culture media, laboratory and country, and 39\% of its samples come from relapsed or refractory disease. The ranking still transfers. This is the external validation of the ranking that the internal analysis could not provide.
+
+\begin{table}[ht]
+\small
+\centering
+\caption{External validation in FIMM: the model is fitted on all 429 Beat AML patients and applied once to 109 FIMM patients, scored on their tested drugs among the 69 shared drugs. $\Delta$: paired difference in precision@5 against B1 with 95\% patient-bootstrap CI. Chance is the mean prevalence of truly sensitive drugs (0.204).}
+\label{tab:fimm}
+\begin{tabular}{@{}lcccc@{}}
+\toprule
+Model & Prec@5 & NDCG@10 & Spearman & $\Delta$ vs B1 [95\% CI]\\
+\midrule
+B1 genomic rules & 0.246 & 0.298 & 0.003 & --\\
+M1 ridge, mutations + clinical & 0.279 & 0.322 & 0.116 & $+0.033$ [$-0.004$, $0.072$]\\
+\rowcolor{lightblue} M1 ridge, all features & \textbf{0.319} & \textbf{0.372} & \textbf{0.158} & $+0.073$ [$0.024$, $0.121$]\\
+\midrule
+\multicolumn{5}{@{}l@{}}{\footnotesize No actionable lesion ($n=46$): B1 0.209, M1 mutations + clinical 0.209, M1 all 0.278.}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Partial screen}\label{sec:partial}
+Table~\ref{tab:partial} shows the Beat AML holdout when a few anchor drugs are screened as well. Three anchors already add $+0.039$ to precision@5. Ten anchors add $+0.097$ $[0.061, 0.131]$, taking the top five from 46\% to 55\% truly sensitive, and twenty reach 58\%. The molecular profile and the anchors are complementary: the same anchors without the profile do worse at every size ($0.50$ vs $0.55$ with ten). Molecular data alone are already a useful stand-in for the screen, and a small screen of about ten drugs closes a further part of the gap. The first anchors, chosen on training data alone, are erlotinib, nilotinib, YM-155, BMS-345541, imatinib, H-89, A-674563, trametinib, bortezomib and SNS-032.
+
+\begin{table}[ht]
+\small
+\centering
+\caption{Partial screen on the Beat AML holdout (145 patients, scored on the same 96 non-anchor drugs in every row). $\Delta$: paired gain in precision@5 over the molecular model without anchors, with 95\% patient-bootstrap CI. Chance: 0.246.}
+\label{tab:partial}
+\begin{tabular}{@{}rlccc@{}}
+\toprule
+Anchors & Inputs & Prec@5 & Spearman & $\Delta$ [95\% CI]\\
+\midrule
+0 & molecular profile (M1) & 0.458 & 0.281 & --\\
+3 & profile + anchors & 0.497 & 0.339 & $+0.039$ [$0.004$, $0.074$]\\
+5 & profile + anchors & 0.505 & 0.357 & $+0.047$ [$0.011$, $0.081$]\\
+\rowcolor{lightblue} 10 & profile + anchors & 0.554 & 0.384 & $+0.097$ [$0.061$, $0.131$]\\
+10 & anchors only & 0.501 & 0.344 & $+0.043$ [$-0.001$, $0.088$]\\
+20 & profile + anchors & \textbf{0.583} & \textbf{0.435} & $+0.126$ [$0.087$, $0.164$]\\
+20 & anchors only & 0.554 & 0.422 & $+0.097$ [$0.048$, $0.145$]\\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \subsection{Clinical validation: induction response}
 Table~\ref{tab:clinical} gives the induction results. The \emph{observed} ex vivo cytarabine drug-standardized AUC ($\z$), available for the 145 clinical-cohort patients whose cells were tested with cytarabine, does not separate refractory from responding patients (univariate AUROC $0.49$; adjusted odds ratio $1.02$ per SD, $p=0.94$). The \emph{predicted} $\z$ does not improve on ELN2017 and age either (cross-validated AUROC $0.736$ vs $0.739$). In the 7+3/HiDAC subset it reaches borderline significance ($p=0.049$), but in the unexpected direction: patients predicted to be more cytarabine-resistant were \emph{less} often refractory. We treat this as noise. PEAR1 and LSC17 did not add to ELN and age here either.
 
@@ -279,6 +348,52 @@ TCGA-LAML, all & ELN + age & 151 (94) & 0.88 [0.70, 1.11] & 0.27 & 0.663\\
 \end{tabular}
 \end{table}
 
+\subsection{Supporting analysis: three patient types organize drug response}\label{sec:clusters}
+Multiple-kernel clustering gives three clusters that are almost perfectly reproducible ($k=3$, bootstrap ARI $0.97$; Figure~\ref{fig:clusters}). The learned view weights are $0.44$ for expression, $0.29$ for drug response and $0.27$ for mutations. The clusters are a primitive, PEAR1-high group (168 patients, 46\% ELN adverse, enriched for TP53, RUNX1 and ASXL1), a monocytic group (120), and an NPM1/FLT3-ITD group (142; 49\% NPM1, 44\% FLT3-ITD). They differ on 93 of 144 drugs ($q<0.05$). Median venetoclax AUC is 62 in the NPM1/FLT3-ITD group against 184 and 202 in the other two, while MEK inhibitors work best in the monocytic group. They add nothing to survival beyond ELN and age (likelihood ratio $p=0.86$), and no single view does either. The primitive group's worse raw survival is explained by its age and ELN risk. Clinical risk and drug choice therefore run along different axes: maturation state organizes \emph{which drugs} a tumor responds to, not how long the patient lives. This is why maturation scores are the recommender's strongest features while adding nothing to prognosis.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures/supporting/clustering.png}
+\caption{Multi-view clustering of 430 Beat AML patients. (A) Patients on the first two components of the learned combined kernel. (B) Bootstrap stability by $k$ and the learned view weights. (C) Median AUC by cluster for the six drugs that differ most. (D) Overall survival by cluster; the difference disappears after adjustment for age and ELN.}
+\label{fig:clusters}
+\end{figure}
+
+\subsection{Supporting analysis: mutation effects depend on maturation state}\label{sec:interactions}
+Over ten random half-splits, shrinkage ranking replicates 4.4 of its top 100 interactions per split, against 0.6 for raw ranking and 0.7 for random ranking (Table~\ref{tab:support}). Ranking by raw effect size is no better than random, because the largest raw estimates come from the smallest carrier groups. Shrinking toward the drug-family mean replicated none: drugs in a family are tested on the same patients, so their estimates share noise, and pooling amplifies it. The interactions that replicate are mostly ones reported by \citet{bottomly2022}. The strongest is FLT3-ITD by monocytic score, for sunitinib, sorafenib, cabozantinib and the aurora kinase inhibitor AZD1152: FLT3-ITD tumors lose their sensitivity to these kinase inhibitors as they become more monocytic. The method's rate of replicated \emph{new} interactions (0.6 per split) is no better than random (0.5), so at this sample size the screen confirms known biology rather than discovering new pairs. In FIMM, which has at most 17 carriers per test, 9 of the 14 testable interactions have the same sign (sign test $p=0.21$). One replicates at $p<0.05$: FLT3-ITD by monocytic score for sorafenib ($p=0.026$). For the recommender, this means a mutation's drug effect has to be read in the context of maturation state. A per-drug model that sees both can learn this; a rule that sees only the mutation cannot.
+
+\subsection{Supporting analysis: PEAR1}\label{sec:pear1}
+PEAR1 predicts overall survival in patients under 45 beyond stemness and beyond its own module (Table~\ref{tab:support}). Pooled over Beat AML de novo patients and TCGA-LAML, the fully adjusted hazard ratio is $2.67$ per SD ($[1.50, 4.74]$, $p=0.001$, 39 deaths). TCGA alone gives $3.54$ $[1.32, 9.51]$, and there is no effect at older ages (all ages $1.01$). PEAR1 also has a drug profile. In Beat AML, after adjustment for the HSC-like score and age, PEAR1-high tumors are more resistant to venetoclax and several kinase inhibitors, and more sensitive to trametinib and panobinostat. Unlike the survival effect, this profile is the same in young and older patients (no PEAR1$\times$young interaction at $q<0.10$; young and older effects correlate at $r=0.73$). Testing the three pre-stated predictions in FIMM: venetoclax resistance replicates ($+0.42$ SD per SD, $p=0.002$), trametinib sensitivity is borderline (one-sided $p=0.03$), and panobinostat does not replicate. Across 75 shared drugs, Beat AML and FIMM PEAR1 effects correlate ($\rho=0.29$, $p=0.013$), and 15 of 20 Beat AML-significant drugs keep their sign. Gene-set enrichment of PEAR1-correlated genes points to inflammatory signalling (TNF$\alpha$/NF-$\kappa$B, interferon) and lower oxidative phosphorylation. PEAR1 is one of the recommender's expression inputs; this analysis shows that the marker carries both a prognostic signal (in the young) and a reproducible drug signal.
+
+\subsection{Supporting analysis: who will fail standard induction}\label{sec:induction-model}
+A gradient-boosting model on routine diagnosis data predicts induction failure on the locked Beat AML test set with AUROC $0.81$ $[0.72, 0.88]$, against $0.65$ $[0.55, 0.74]$ for ELN 2022 alone (Table~\ref{tab:support}). It is well calibrated on average (mean predicted $0.32$, observed $0.31$). Its net benefit exceeds ELN's at every risk threshold from 0.2 to 0.5, and at 90\% conformal coverage it makes confident calls for half the patients, 91\% of them correct. Age, ELN favorable risk, LDH, albumin and NPM1 drive it. On the same 240 patients, expression scores and drug-screen factors raise AUROC by at most a few points over the clinical model, and the drug screen's own cytarabine result does not predict failure (Table~\ref{tab:clinical}). The model did \emph{not} transfer to FIMM: among 119 intensively treated FIMM patients (16 without a recorded CR), its AUROC was $0.59$ $[0.44, 0.74]$, against $0.73$ for ELN 2017 and age. FIMM records ``first CR ever'' rather than response to the first induction, uses a different protocol (intermediate-dose cytarabine with idarubicin), and has few events. The Beat AML result is therefore promising but not yet externally confirmed.
+
+\begin{table}[ht]
+\small
+\centering
+\caption{Supporting analyses. Interactions: top-100 interactions replicated per split (mean of 10 splits). PEAR1: Cox HR per SD, adjusted for age, cytogenetic risk, HSC-like score and module M3 without PEAR1. Induction: AUROC with 95\% bootstrap CI.}
+\label{tab:support}
+\begin{tabular}{@{}llc@{}}
+\toprule
+Analysis & Comparison & Result\\
+\midrule
+\multirow{4}{*}{Interaction screen} & Empirical-Bayes ranking & \textbf{4.4}\\
+ & Raw effect ranking & 0.6\\
+ & Random ranking & 0.7\\
+ & Shrinkage toward drug family & 0.0\\
+\midrule
+\multirow{4}{*}{PEAR1 survival} & Pooled, age $<45$ (39 deaths) & \textbf{2.67} [1.50, 4.74]\\
+ & TCGA alone, age $<45$ (18 deaths) & 3.54 [1.32, 9.51]\\
+ & Beat AML alone, age $<45$ (21 deaths) & 1.90 [0.79, 4.59]\\
+ & Pooled, all ages (213 deaths) & 1.01 [0.80, 1.26]\\
+\midrule
+\multirow{4}{*}{Induction failure} & Beat AML test: ELN 2022 only & 0.65 [0.55, 0.74]\\
+ & Beat AML test: clinical model & \textbf{0.81} [0.72, 0.88]\\
+ & FIMM: ELN 2017 + age & 0.73 [0.58, 0.87]\\
+ & FIMM: clinical model (frozen) & 0.59 [0.44, 0.74]\\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \section{Analysis}
 \label{sec:analysis}
 \subsection{Why the learned model beats the rules}
@@ -293,12 +408,21 @@ M2 was designed to share information across drugs, which should help with only a
 \subsection{Why the induction result is negative}
 The predicted cytarabine score cannot be expected to anticipate induction response if the observed ex vivo result does not, and in this cohort it does not. Plausible reasons are that induction combines cytarabine with an anthracycline, which is not on the panel; that a short culture misses the marrow microenvironment and drug pharmacokinetics; and that induction failure partly reflects patient fitness. This is a finding about the ex vivo readout for cytarabine, not about the model.
 
+\subsection{How the supporting analyses support the recommender}
+The supporting results line up behind one picture. Maturation state is the main axis of patient-specific drug response. It defines stable patient types that differ on most drugs (Section~\ref{sec:clusters}), it changes how mutations act on drugs (Section~\ref{sec:interactions}), and it carries the venetoclax and MEK signals that the recommender predicts best in both cohorts (Table~\ref{tab:drugs}, Section~\ref{sec:fimm}). The same axis carries little prognostic information beyond ELN and age, with PEAR1 in young patients the one exception. This explains why the recommender gains most from cell-type scores while the cytarabine-based clinical tests were negative: the expression features answer ``which drug'', not ``how will this patient do on standard chemotherapy''. The two questions need different inputs. Induction failure is predicted by age and routine laboratory values, and drug choice by maturation and genotype. In practice, a clinician would first flag patients unlikely to respond to 7+3 (Section~\ref{sec:induction-model}), then use the recommender, ideally with a small anchor screen (Section~\ref{sec:partial}), to rank their alternatives.
+
+\subsection{Why the external ranking result matters most}
+Among the new results, the FIMM replication is the strongest because it removes the main caveat of the internal analysis. Waves3+4 share Beat AML's assay and pipeline. FIMM does not, and the model still beats the rules by the same margin. The induction model, in contrast, did not transfer to FIMM, and FIMM is too small to test most interactions, so both remain hypotheses.
+
 \subsection{Why the survival result did not replicate}
 Three explanations are possible and cannot be separated here. First, the Beat AML association may be a chance finding among the several clinical tests we ran. Second, TCGA's exome calls under-detect two of the cytarabine model's strongest inputs: FLT3-ITD, its largest weight, is called in 16\% of TCGA patients against 24\% in Beat AML, and SRSF2 in 2\% against 12\%. Third, the cohorts differ in era (TCGA patients were diagnosed 2001--2010), treatment and composition. The feature mapping itself appears sound. The mapped monocyte-like score separates FAB M4/M5 cases strongly (mean $3.6$ vs $-1.6$), predicted scores have a similar spread in both cohorts (SD $0.31$ vs $0.40$), and approximate ELN and age give a sensible C-index. A first TCGA run contained a bug: genes with missing values in the TCGA expression file made seven expression features undefined, and these were silently imputed. It was found by checking feature distributions and fixed before the results were interpreted, and the conclusion did not change.
 
 \section{Limitations}
 \begin{itemize}[leftmargin=1.5em,itemsep=2pt]
-\item The ranking validation is internal. Waves3+4 are new patients, but from the same programme, assay and pipeline. An external cohort with both a drug screen and RNA-seq would be needed to validate the ranking itself.
+\item The Beat AML ranking validation is internal. Waves3+4 are new patients, but from the same programme, assay and pipeline. An external cohort with both a drug screen and RNA-seq would be needed to validate the ranking itself. Section~\ref{sec:fimm} now provides this in FIMM, on 69 of the 116 drugs and 109 patients, with a different assay readout (sDSS) and rank-normalized targets.
+\item FIMM is small for subgroup questions: interaction tests have at most 17 carriers, and the induction comparison rests on 16 events with an outcome (first CR ever) that only approximates induction response.
+\item The partial-screen anchors were chosen to span the panel, not for clinical convenience; a practical anchor panel would also weigh cost and availability.
+\item ELN 2022 in Beat AML is approximated from the released mutation, fusion and karyotype calls, and karyotype parsing is imperfect.
 \item The target is ex vivo sensitivity. A high-ranked drug is one the patient's cells respond to in culture; we show no evidence that treating by this ranking improves outcomes, and for cytarabine the ex vivo readout did not track induction response.
 \item The sensitivity cutoff ($\z<-0.84$) is our choice, and the holdout's higher sensitivity rate shows that $\z$-scaling across waves is imperfect.
 \item The clinical analyses are retrospective. Treatment was not assigned by the model, few patients received venetoclax-based induction, and anthracyclines are absent from the panel.
@@ -308,6 +432,8 @@ Three explanations are possible and cannot be separated here. First, the Beat AM
 
 \section{Conclusion and future work}
 Molecular profiles at diagnosis, and in particular the tumor's maturation state, recover a substantial part of the patient-specific information in the Beat AML ex vivo drug screen. A simple per-drug ridge model beats genotype-matched rules on patients accrued later, with the largest benefit for patients who have no actionable lesion. Venetoclax response is especially well predicted. We found no evidence that ex vivo cytarabine sensitivity, measured or predicted, anticipates response to induction, and an apparent survival association did not replicate externally. The most useful next steps are external validation of the ranking in a cohort with both screen and RNA-seq data, and a venetoclax-focused analysis comparing predicted sensitivity with outcomes of venetoclax-treated patients.
+
+The first of these steps is now done. In FIMM, the frozen recommender beats genotype rules by the same margin as on the Beat AML holdout, and venetoclax and MEK inhibitors remain the best-predicted drugs. Screening about ten anchor drugs adds substantially to the molecular profile. The supporting analyses explain why maturation state dominates the ranking. It defines stable patient types that differ on most drugs but not in survival, and it changes how mutations act on drugs. Its strongest single expression marker, PEAR1, carries a prognostic signal in young patients and a venetoclax-resistance signal that replicates externally. A model of induction failure from routine data is promising in Beat AML but did not transfer to FIMM, and remains the main open clinical question.
 
 \FloatBarrier
 \renewcommand{\bibsection}{\section*{References}}
